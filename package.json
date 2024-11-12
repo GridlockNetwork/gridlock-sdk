@@ -1,0 +1,37 @@
+{
+  "name": "gridlock-pg-sdk",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "exports": "./dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch"
+  },
+  "keywords": [
+    "sdk",
+    "gridlock",
+    "secure",
+    "crypto",
+    "storage"
+  ],
+  "author": "Rares",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "@types/uuid": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.2"
+  },
+  "dependencies": {
+    "apisauce": "^3.1.0",
+    "argon2": "^0.41.1",
+    "bs58": "^6.0.0",
+    "ethers": "^6.13.3",
+    "moment": "^2.30.1",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1",
+    "uuid": "^10.0.0"
+  }
+}
