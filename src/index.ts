@@ -156,7 +156,7 @@ class GridlockSdk {
   //   return hash;
   // };
 
-  async createUser(registerData: User) {
+  async createUser(registerData: User, verbose: boolean = false) {
     const nodeId = this.generateNodeId();
     const nodePublicKey = this.generateDummyPublicKey();
 
@@ -171,7 +171,11 @@ class GridlockSdk {
     const response = await this.api.post<RegisterResponse>('/user/sdk/register', requestData);
 
     if (!response.ok) {
-      this.log(`Error trying to create user:\n${response.problem}\n${response.status} ${response.data ? response.data : ''}s`);
+      if (verbose) {
+        this.log(`Error trying to create user:\n${response.problem}\n${response.status}\n${JSON.stringify(response.data)}`);
+      } else {
+        this.log(`Error trying to create user:\n${response.problem}\n${response.status}`);
+      }
       return null;
     }
 
@@ -182,11 +186,15 @@ class GridlockSdk {
     return data;
   }
 
-  async createWallets(coinTypes: string[]) {
+  async createWallets(coinTypes: string[], verbose: boolean = false) {
     const response = await this.api.post<CreateMultipleWalletResponse>('/wallet/create_multiple', { coinTypes });
 
     if (!response.ok) {
-      this.log('Error trying to create wallet:\n', response.problem, response.status);
+      if (verbose) {
+        this.log('Error trying to create wallet:\n', response.problem, response.status, JSON.stringify(response.data));
+      } else {
+        this.log('Error trying to create wallet:\n', response.problem, response.status);
+      }
       return null;
     }
 
@@ -195,11 +203,15 @@ class GridlockSdk {
     return wallet;
   }
 
-  async refreshToken(token: string) {
+  async refreshToken(token: string, verbose: boolean = false) {
     const response = await this.api.post<LoginResponse>('/login/token', { token });
 
     if (!response.ok) {
-      this.log('Error trying to login with token', response.problem, response.status);
+      if (verbose) {
+        this.log('Error trying to login with token', response.problem, response.status, JSON.stringify(response.data));
+      } else {
+        this.log('Error trying to login with token', response.problem, response.status);
+      }
       return null;
     }
 
@@ -211,30 +223,38 @@ class GridlockSdk {
     const nodePublicKey = user.nodePool.find(node => node.nodeId === nodeId)?.publicKey;
 
     this.refreshRequestHandler(newToken, nodeId, nodePublicKey || '');
-    this.log('Token refreshed. Please try again.');
+    this.log('Refresh complete');
 
     return response.data;
   }
 
-  async signMessage(message: string, coinType: string) {
+  async signMessage(message: string, coinType: string, verbose: boolean = false) {
     const response = await this.api.post('/transaction/sdk/signMessageSdk', { message, coinType });
     if (!response.ok) {
-      this.log('Error trying to sign message', response.problem, response.status);
+      if (verbose) {
+        this.log('Error trying to sign message', response.problem, response.status, JSON.stringify(response.data));
+      } else {
+        this.log('Error trying to sign message', response.problem, response.status);
+      }
       return null;
     }
     return response.data;
   }
 
-  async signSerializedTx(serializedTx: string, coinType: string) {
+  async signSerializedTx(serializedTx: string, coinType: string, verbose: boolean = false) {
     const response = await this.api.post('/transaction/sdk/signSerializedTxSdk', { serializedTx, coinType });
     if (!response.ok) {
-      this.log('Error trying to sign serialized tx', response.problem, response.status);
+      if (verbose) {
+        this.log('Error trying to sign serialized txxxxxxx', response.problem, response.status, response);
+      } else {
+        this.log('Error trying to sign serialized tx', response.problem, response.status);
+      }
       return null;
     }
     return response.data;
   }
 
-  async verifySignature(coinType: string, message: string, signature: string, expectedAddress: string) {
+  async verifySignature(coinType: string, message: string, signature: string, expectedAddress: string, verbose: boolean = false) {
     if (!SUPPORTED_COINS.includes(coinType)) {
       this.log('Invalid coin type');
       return null;
@@ -263,23 +283,31 @@ class GridlockSdk {
         return isVerified;
       }
     } catch (error) {
-      this.log('Error trying to check signature', error);
+      if (verbose) {
+        this.log('Error trying to check signature', error, JSON.stringify(error));
+      } else {
+        this.log('Error trying to check signature', error);
+      }
       return null;
     }
   }
 
-  async getNetworkStatus() {
+  async getNetworkStatus(verbose: boolean = false) {
     const response = await this.api.post<UserStatusResponse>('monitoring/userStatusV2');
 
     if (!response.ok) {
-      this.log('Error trying to retrieve network status', response.problem, response.status);
+      if (verbose) {
+        this.log('Error trying to retrieve network status', response.problem, response.status, JSON.stringify(response.data));
+      } else {
+        this.log('Error trying to retrieve network status', response.problem, response.status);
+      }
       return null;
     }
     return response.data;
   }
 
-  async getNodes() {
-    const data = await this.getNetworkStatus();
+  async getNodes(verbose: boolean = false) {
+    const data = await this.getNetworkStatus(verbose);
     if (!data) return null;
 
     const user = data.data.user;
@@ -307,55 +335,74 @@ class GridlockSdk {
     return nodes;
   }
 
-  async getUser() {
+  async getUser(verbose: boolean = false) {
     const response = await this.api.get<{ message: string; user?: User }>('/user');
-
     if (!response.ok || !response.data?.user) {
-      this.log('Error trying to get user', response.problem, response.status);
+      if (verbose) {
+        this.log('Error trying to get user', response.problem, response.status, JSON.stringify(response.data));
+      } else {
+        this.log('Error trying to get user', response.problem, response.status);
+      }
       return null;
     }
 
     return response.data.user as User;
-  }
+  } 
 
-  async getWallets() {
+  async getWallets(verbose: boolean = false) {
     const response = await this.api.get<{ message: string; wallets: CoinWallet[] }>('/wallet');
 
     if (!response.ok) {
-      this.log('Error trying to get user wallets', response.problem, response.status);
+      if (verbose) {
+        this.log('Error trying to get user wallets', response.problem, response.status, JSON.stringify(response.data));
+      } else {
+        this.log('Error trying to get user wallets', response.problem, response.status);
+      }
       return null;
     }
 
     return response.data?.wallets as CoinWallet[];
   }
 
-  async deleteUser() {
+  async deleteUser(verbose: boolean = false) {
     const response = await this.api.delete('/user/safe');
 
     if (!response.ok) {
-      this.log('Error trying to delete user', response.problem, response.status);
+      if (verbose) {
+        this.log('Error trying to delete user', response.problem, response.status, JSON.stringify(response.data));
+      } else {
+        this.log('Error trying to delete user', response.problem, response.status);
+      }
       return null;
     }
 
     return response.data;
   }
 
-  async addUserGuardian(data: { name: string }) {
+  async addUserGuardian(data: { name: string }, verbose: boolean = false) {
     const response = await this.api.post<Omit<ReplaceGuardianResponse, 'state'>>('user/guardian/add', data);
 
     if (!response.ok) {
-      this.log('Error trying to add guardian', response.problem, response.status);
+      if (verbose) {
+        this.log('Error trying to add guardian', response.problem, response.status, JSON.stringify(response.data));
+      } else {
+        this.log('Error trying to add guardian', response.problem, response.status);
+      }
       return null;
     }
 
     return response.data as Omit<ReplaceGuardianResponse, 'state'>;
   }
 
-  async generateGuardianDeeplink(params: any) {
+  async generateGuardianDeeplink(params: any, verbose: boolean = false) {
     const response = await this.api.post('/user/generateLink', { params });
 
     if (!response.ok) {
-      this.log('Error trying to generate link', response.problem, response.status);
+      if (verbose) {
+        this.log('Error trying to generate link', response.problem, response.status, JSON.stringify(response.data));
+      } else {
+        this.log('Error trying to generate link', response.problem, response.status);
+      }
       return null;
     }
 
