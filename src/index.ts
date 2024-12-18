@@ -245,7 +245,7 @@ class GridlockSdk {
     const response = await this.api.post('/transaction/sdk/signSerializedTxSdk', { serializedTx, coinType });
     if (!response.ok) {
       if (verbose) {
-        this.log('Error trying to sign serialized txxxxxxx', response.problem, response.status, response);
+        this.log('Error trying to sign serialized txxxxxxx', response.problem, response.status, JSON.stringify(response.data));
       } else {
         this.log('Error trying to sign serialized tx', response.problem, response.status);
       }
