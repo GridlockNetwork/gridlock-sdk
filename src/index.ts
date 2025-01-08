@@ -39,6 +39,10 @@ interface RegisterResponse {
   token: string;
 }
 
+type UnifiedResponse<T> =
+  | { success: true; payload: T } // For success
+  | { success: false; error: { message: string; code?: number } }; // For failure
+
 class GridlockSdk {
   private apiKey: string;
   private baseUrl: string;
@@ -156,11 +160,9 @@ class GridlockSdk {
   //   return hash;
   // };
 
-  async createUser(registerData: User, verbose: boolean = false) {
+  async createUser(registerData: User): Promise<UnifiedResponse<RegisterResponse>> {
     const nodeId = this.generateNodeId();
     const nodePublicKey = this.generateDummyPublicKey();
-
-    // const password = await this.hashPassword(data.password, 'gridlock_hub');
 
     const requestData = {
       ...registerData,
@@ -168,96 +170,42 @@ class GridlockSdk {
       nodePublicKey,
     };
 
-    const response = await this.api.post<RegisterResponse>('/user/sdk/register', requestData);
-
-    if (!response.ok) {
-      if (verbose) {
-        this.log(`Error trying to create user:\n${response.problem}\n${response.status}\n${JSON.stringify(response.data)}`);
-      } else {
-        this.log(`Error trying to create user:\n${response.problem}\n${response.status}`);
-      }
-      return null;
-    }
-
-    const data = response.data as RegisterResponse;
-    const token = data.token;
-    this.refreshRequestHandler(token, nodeId, nodePublicKey);
-
-    return data;
+    const response = await this.api.post<UnifiedResponse<RegisterResponse>>('/user/sdk/register', requestData);
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 
-  async createWallets(coinTypes: string[], verbose: boolean = false) {
-    const response = await this.api.post<CreateMultipleWalletResponse>('/wallet/create_multiple', { coinTypes });
-
-    if (!response.ok) {
-      if (verbose) {
-        this.log('Error trying to create wallet:\n', response.problem, response.status, JSON.stringify(response.data));
-      } else {
-        this.log('Error trying to create wallet:\n', response.problem, response.status);
-      }
-      return null;
-    }
-
-    const wallet = (response.data as { walletList: CoinWallet[] }).walletList;
-
-    return wallet;
+  async createWallets(coinTypes: string[]): Promise<UnifiedResponse<CoinWallet[]>> {
+    const response = await this.api.post<UnifiedResponse<CoinWallet[]>>('/wallet/create_multiple', { coinTypes });
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 
-  async refreshToken(token: string, verbose: boolean = false) {
-    const response = await this.api.post<LoginResponse>('/login/token', { token });
+  async refreshToken(token: string): Promise<UnifiedResponse<LoginResponse>> {
+    const response = await this.api.post<UnifiedResponse<LoginResponse>>('/login/token', { token });
+    if (response.data?.success) {
+      const payload = response.data.payload;
+      const newToken = payload.token;
+      const user = payload.user;
+      const nodeId = user.nodeId;
+      const nodePublicKey = user.nodePool.find(node => node.nodeId === nodeId)?.publicKey;
 
-    if (!response.ok) {
-      if (verbose) {
-        this.log('Error trying to login with token', response.problem, response.status, JSON.stringify(response.data));
-      } else {
-        this.log('Error trying to login with token', response.problem, response.status);
-      }
-      return null;
+      this.refreshRequestHandler(newToken, nodeId, nodePublicKey || '');
     }
-
-    this.log('Refreshing token');
-    const data = response.data as LoginResponse;
-    const newToken = data.token;
-    const user = data.user;
-    const nodeId = user.nodeId;
-    const nodePublicKey = user.nodePool.find(node => node.nodeId === nodeId)?.publicKey;
-
-    this.refreshRequestHandler(newToken, nodeId, nodePublicKey || '');
-    this.log('Refresh complete');
-
-    return response.data;
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 
-  async signMessage(message: string, coinType: string, verbose: boolean = false) {
-    const response = await this.api.post('/transaction/sdk/signMessageSdk', { message, coinType });
-    if (!response.ok) {
-      if (verbose) {
-        this.log('Error trying to sign message', response.problem, response.status, JSON.stringify(response.data));
-      } else {
-        this.log('Error trying to sign message', response.problem, response.status);
-      }
-      return null;
-    }
-    return response.data;
+  async signMessage(message: string, coinType: string): Promise<UnifiedResponse<any>> {
+    const response = await this.api.post<UnifiedResponse<any>>('/transaction/sdk/signMessageSdk', { message, coinType });
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 
-  async signSerializedTx(serializedTx: string, coinType: string, verbose: boolean = false) {
-    const response = await this.api.post('/transaction/sdk/signSerializedTxSdk', { serializedTx, coinType });
-    if (!response.ok) {
-      if (verbose) {
-        this.log('Error trying to sign serialized txxxxxxx', response.problem, response.status, JSON.stringify(response.data));
-      } else {
-        this.log('Error trying to sign serialized tx', response.problem, response.status);
-      }
-      return null;
-    }
-    return response.data;
+  async signTx(tx: string, coinType: string): Promise<UnifiedResponse<any>> {
+    const response = await this.api.post<UnifiedResponse<any>>('/transaction/sdk/signTx', { tx, coinType });
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 
-  async verifySignature(coinType: string, message: string, signature: string, expectedAddress: string, verbose: boolean = false) {
+  async verifySignature(coinType: string, message: string, signature: string, expectedAddress: string): Promise<UnifiedResponse<boolean>> {
     if (!SUPPORTED_COINS.includes(coinType)) {
-      this.log('Invalid coin type');
-      return null;
+      return { success: false, error: { message: 'Invalid coin type' } };
     }
 
     try {
@@ -267,7 +215,7 @@ class GridlockSdk {
 
         const isValid = recoveredAddress?.toLowerCase() === expectedAddress?.toLowerCase();
 
-        return isValid;
+        return { success: true, payload: isValid };
       }
 
       if (coinType === SOLANA) {
@@ -275,56 +223,45 @@ class GridlockSdk {
         const signatureBytes = bs58.decode(signature);
         const addressBytes = bs58.decode(expectedAddress);
 
-        this.log('Message Bytes:', Buffer.from(messageBytes).toString('hex'));
-        this.log('Signature Bytes:', Buffer.from(signatureBytes).toString('hex'));
-        this.log('Address Bytes:', Buffer.from(addressBytes).toString('hex'));
-
         const isVerified = nacl.sign.detached.verify(messageBytes, signatureBytes, addressBytes);
-        return isVerified;
+        return { success: true, payload: isVerified };
       }
     } catch (error) {
-      if (verbose) {
-        this.log('Error trying to check signature', error, JSON.stringify(error));
-      } else {
-        this.log('Error trying to check signature', error);
-      }
-      return null;
+      return { success: false, error: { message: 'Error trying to check signature' } };
     }
+
+    return { success: false, error: { message: 'Unsupported coin type' } };
   }
 
-  async getNetworkStatus(verbose: boolean = false) {
-    const response = await this.api.post<UserStatusResponse>('monitoring/userStatusV2');
+  // async getNetworkStatus(): Promise<UnifiedResponse<UserStatusResponse>> {
+  //   const response = await this.api.post<UnifiedResponse<UserStatusResponse>>('monitoring/userStatusV2');
+  //   return response.data || { success: false, error: { message: 'No response data', code: response.status } };
+  // }
 
-    if (!response.ok) {
-      if (verbose) {
-        this.log('Error trying to retrieve network status', response.problem, response.status, JSON.stringify(response.data));
-      } else {
-        this.log('Error trying to retrieve network status', response.problem, response.status);
-      }
-      return null;
+  async getNodes(): Promise<UnifiedResponse<any>> {
+    const response = await this.api.post<UnifiedResponse<UserStatusResponse>>('monitoring/userStatusV2');
+    if (!response.data?.success) {
+      return { success: false, error: { message: response.data?.error?.message || 'No response data', code: response.status } };
     }
-    return response.data;
-  }
 
-  async getNodes(verbose: boolean = false) {
-    const data = await this.getNetworkStatus(verbose);
-    if (!data) return null;
+    const payload = response.data.payload;
+    const user = payload.user;
+    if (!user) return { success: false, error: { message: 'User not defined in response' } };
 
-    const user = data.data.user;
-    if (!user) return null; // sometimes user is not defined in the response
-
-    const nodePool = data?.data.user?.nodePool;
+    const nodePool = user.nodePool;
+    const guardianData = payload.guardian;
 
     const types = {
-      'userGuardian': 'userGuardian',
-      'gridlockGuardian': 'gridlock',
-      'ownerGuardian': 'owner',
-      'partnerGuardian': 'partner',
+      userGuardian: 'userGuardian',
+      gridlockGuardian: 'gridlock',
+      ownerGuardian: 'owner',
+      partnerGuardian: 'partner',
     };
 
-    const nodes = data.data.guardian.map(guardian => {
+    const nodes = guardianData.map(guardian => {
+      const node = nodePool.find(node => node.nodeId === guardian.nodeId);
       return {
-        nodeType: types[(nodePool.find(node => node.nodeId === guardian.nodeId)?.type as keyof typeof types) || ''],
+        nodeType: types[node?.type as keyof typeof types] || '',
         nodeId: guardian.nodeId,
         name: guardian.name,
         status: guardian.healthy ? 'Active' : 'Inactive',
@@ -332,81 +269,48 @@ class GridlockSdk {
       };
     });
 
-    return nodes;
+    return { success: true, payload: nodes };
   }
 
-  async getUser(verbose: boolean = false) {
-    const response = await this.api.get<{ message: string; user?: User }>('/user');
-    if (!response.ok || !response.data?.user) {
-      if (verbose) {
-        this.log('Error trying to get user', response.problem, response.status, JSON.stringify(response.data));
-      } else {
-        this.log('Error trying to get user', response.problem, response.status);
-      }
-      return null;
-    }
-
-    return response.data.user as User;
+  async getUser(): Promise<UnifiedResponse<User>> {
+    const response = await this.api.get<UnifiedResponse<User>>('/user');
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   } 
 
-  async getWallets(verbose: boolean = false) {
-    const response = await this.api.get<{ message: string; wallets: CoinWallet[] }>('/wallet');
-
-    if (!response.ok) {
-      if (verbose) {
-        this.log('Error trying to get user wallets', response.problem, response.status, JSON.stringify(response.data));
-      } else {
-        this.log('Error trying to get user wallets', response.problem, response.status);
-      }
-      return null;
-    }
-
-    return response.data?.wallets as CoinWallet[];
+  async getWallets(): Promise<UnifiedResponse<CoinWallet[]>> {
+    const response = await this.api.get<UnifiedResponse<CoinWallet[]>>('/wallet');
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 
-  async deleteUser(verbose: boolean = false) {
-    const response = await this.api.delete('/user/safe');
-
-    if (!response.ok) {
-      if (verbose) {
-        this.log('Error trying to delete user', response.problem, response.status, JSON.stringify(response.data));
-      } else {
-        this.log('Error trying to delete user', response.problem, response.status);
-      }
-      return null;
-    }
-
-    return response.data;
+  async deleteUser(): Promise<UnifiedResponse<any>> {
+    const response = await this.api.delete<UnifiedResponse<any>>('/user/safe');
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 
-  async addUserGuardian(data: { name: string }, verbose: boolean = false) {
-    const response = await this.api.post<Omit<ReplaceGuardianResponse, 'state'>>('user/guardian/add', data);
-
-    if (!response.ok) {
-      if (verbose) {
-        this.log('Error trying to add guardian', response.problem, response.status, JSON.stringify(response.data));
-      } else {
-        this.log('Error trying to add guardian', response.problem, response.status);
-      }
-      return null;
-    }
-
-    return response.data as Omit<ReplaceGuardianResponse, 'state'>;
+  async addUserGuardian(data: { name: string }): Promise<UnifiedResponse<Omit<ReplaceGuardianResponse, 'state'>>> {
+    const response = await this.api.post<UnifiedResponse<Omit<ReplaceGuardianResponse, 'state'>>>('user/guardian/add', data);
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 
-  async generateGuardianDeeplink(params: any, verbose: boolean = false) {
-    const response = await this.api.post('/user/generateLink', { params });
+  async generateGuardianDeeplink(params: any): Promise<UnifiedResponse<any>> {
+    const response = await this.api.post<UnifiedResponse<any>>('/user/generateLink', { params });
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
+  }
 
-    if (!response.ok) {
-      if (verbose) {
-        this.log('Error trying to generate link', response.problem, response.status, JSON.stringify(response.data));
-      } else {
-        this.log('Error trying to generate link', response.problem, response.status);
-      }
-      return null;
-    }
+  async addGuardian(data: { nodeId: string; name: string; publicKey: string }): Promise<UnifiedResponse<any>> {
+    const requestData = {
+      ...data,
+      type: 'independentGuardian',
+      model: 'sdk',
+      active: true,
+    };
+    const response = await this.api.post<UnifiedResponse<any>>('/sdk/guardian/add', requestData);
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
+  }
 
-    return response.data;
+  async showNetwork(): Promise<UnifiedResponse<any>> {
+    const response = await this.api.get<UnifiedResponse<any>>('/sdk/guardian');
+    return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 }
 

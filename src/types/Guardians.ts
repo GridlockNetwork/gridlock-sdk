@@ -33,17 +33,14 @@ interface GuardianStatus {
 }
 
 export interface UserStatusResponse {
-  message: string;
-  data: {
-    email: string;
-    userId: string;
-    nodeId: string;
-    created: string;
-    lastLogin: string;
-    status: Status;
-    guardian: GuardianStatus[];
-    user: User;
-  };
+  email: string;
+  userId: string;
+  nodeId: string;
+  created: string;
+  lastLogin: string;
+  status: Status;
+  guardian: GuardianStatus[];
+  user: User;
 }
 
 export interface Guardian {
