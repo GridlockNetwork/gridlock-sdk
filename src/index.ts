@@ -6,7 +6,7 @@ import argon2 from 'argon2';
 import { hashMessage, recoverAddress } from 'ethers';
 import { User } from './types/User';
 import moment from 'moment';
-import { ReplaceGuardianResponse, UserStatusResponse } from './types/Guardians';
+import { ReplaceGuardianResponse, UserStatusResponse, Guardian } from './types/Guardians';
 import { CoinWallet, CreateMultipleWalletResponse } from './types/Wallet';
 
 import nacl from 'tweetnacl';
@@ -15,6 +15,7 @@ import pkg from 'tweetnacl-util';
 const { decodeUTF8 } = pkg;
 
 import bs58 from 'bs58';
+import { MongoClient, Db } from 'mongodb';
 
 export const ETHEREUM = 'ethereum';
 export const SOLANA = 'solana';
@@ -39,6 +40,11 @@ interface RegisterResponse {
   token: string;
 }
 
+interface MongoDBConfig {
+  uri: string;
+  dbName: string;
+}
+
 type UnifiedResponse<T> =
   | { success: true; payload: T } // For success
   | { success: false; error: { message: string; code?: number } }; // For failure
@@ -50,6 +56,8 @@ class GridlockSdk {
   private logger: any;
   private authToken: string = '';
   private retriedRequest: boolean = false; // flag to track if a request has been retried
+  private mongoClient: MongoClient | null = null;
+  private db: Db | null = null;
 
   api: ApisauceInstance;
 
@@ -69,6 +77,14 @@ class GridlockSdk {
     });
 
     this.addInterceptors();
+
+    process.on('SIGINT', async () => {
+      if (this.mongoClient) {
+        await this.mongoClient.close();
+        console.log('MongoDB connection closed');
+      }
+      process.exit(0);
+    });
   }
 
   private generateNodeId() {
@@ -159,6 +175,33 @@ class GridlockSdk {
 
   //   return hash;
   // };
+
+  async initDb(mongoConfig: MongoDBConfig): Promise<void> {
+    if (!mongoConfig || !mongoConfig.uri || !mongoConfig.dbName) {
+      throw new Error('MongoDB configuration is incomplete');
+    }
+
+    if (!mongoConfig.uri.startsWith('mongodb://') && !mongoConfig.uri.startsWith('mongodb+srv://')) {
+      throw new Error('Invalid MongoDB URI scheme');
+    }
+
+    this.mongoClient = new MongoClient(mongoConfig.uri);
+    try {
+      await this.mongoClient.connect();
+    } catch (err) {
+      console.error('Failed to connect to MongoDB:', err);
+      throw err;  // Stop execution if connection fails
+    }
+    this.db = this.mongoClient.db(mongoConfig.dbName);
+    this.log('MongoDB connected successfully');
+  }
+
+  async closeDb(): Promise<void> {
+    if (this.mongoClient) {
+      await this.mongoClient.close();
+      this.log('MongoDB connection closed on SDK');
+    }
+  }
 
   async createUser(registerData: User): Promise<UnifiedResponse<RegisterResponse>> {
     const nodeId = this.generateNodeId();
@@ -275,7 +318,7 @@ class GridlockSdk {
   async getUser(): Promise<UnifiedResponse<User>> {
     const response = await this.api.get<UnifiedResponse<User>>('/user');
     return response.data || { success: false, error: { message: 'No response data', code: response.status } };
-  } 
+  }
 
   async getWallets(): Promise<UnifiedResponse<CoinWallet[]>> {
     const response = await this.api.get<UnifiedResponse<CoinWallet[]>>('/wallet');
@@ -296,20 +339,50 @@ class GridlockSdk {
     const response = await this.api.post<UnifiedResponse<any>>('/user/generateLink', { params });
     return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
+  async addGuardianToNetwork(guardian: Guardian): Promise<UnifiedResponse<any>> {
 
-  async addGuardian(data: { nodeId: string; name: string; publicKey: string }): Promise<UnifiedResponse<any>> {
-    const requestData = {
-      ...data,
-      type: 'independentGuardian',
-      model: 'sdk',
-      active: true,
-    };
-    const response = await this.api.post<UnifiedResponse<any>>('/sdk/guardian/add', requestData);
+    if (!this.db) {
+      return { success: false, error: { message: 'Database not initialized' } };
+    }
+
+    try {
+      const collection = this.db.collection('guardians');
+      const result = await collection.insertOne({
+        ...guardian,
+        model: 'sdk',
+        active: true,
+      });
+
+      return { success: true, payload: result.insertedId };
+    } catch (error) {
+      return { success: false, error: { message: (error as Error).message } };
+    }
+  }
+
+
+  async showNetwork(): Promise<UnifiedResponse<any>> {
+
+    if (!this.db) {
+      return { success: false, error: { message: 'Database not initialized' } };
+    }
+    console.log('showNettttttttttttttt'); // TODO - remove this
+    try {
+      const collection = this.db.collection('guardians');
+      const guardians = await collection.find({}).toArray();
+      return { success: true, payload: guardians };
+    } catch (error) {
+      console.log('errorrrrrrrrrrrrrrrrrrrr', error); // TODO - remove this
+      return { success: false, error: { message: (error as Error).message } };
+    }
+  }
+
+  async getGridlockGuardian(): Promise<UnifiedResponse<Guardian>> {
+    const response = await this.api.get<UnifiedResponse<Guardian>>('/sdk/guardian/gridlock');
     return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 
-  async showNetwork(): Promise<UnifiedResponse<any>> {
-    const response = await this.api.get<UnifiedResponse<any>>('/sdk/guardian');
+  async getPartnerGuardian(): Promise<UnifiedResponse<Guardian>> {
+    const response = await this.api.get<UnifiedResponse<Guardian>>('/sdk/guardian/partner');
     return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 }

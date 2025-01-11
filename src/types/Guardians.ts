@@ -44,11 +44,11 @@ export interface UserStatusResponse {
 }
 
 export interface Guardian {
-  _id: string;
-  active: boolean;
-  modified: string;
   nodeId: string;
-  index: number;
+  name: string;
+  type: string;
+  active: boolean;
+  publicKey: string;
 }
 
 export interface ReplaceGuardianResponse {
