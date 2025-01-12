@@ -1,3 +1,5 @@
+import { Guardian } from './Guardians';
+
 export interface User {
   _id: string;
   ipAddressInfo: {
@@ -142,4 +144,10 @@ export interface ProtectingInvite {
   name: string;
   nodeId: string;
   profilePhotoUrl?: string;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
+  guardians: Guardian[];
 }

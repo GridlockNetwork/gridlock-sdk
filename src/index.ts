@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import argon2 from 'argon2';
 import { hashMessage, recoverAddress } from 'ethers';
-import { User } from './types/User';
+import { User, RegisterData } from './types/User';
 import moment from 'moment';
 import { ReplaceGuardianResponse, UserStatusResponse, Guardian } from './types/Guardians';
 import { CoinWallet, CreateMultipleWalletResponse } from './types/Wallet';
@@ -203,17 +203,8 @@ class GridlockSdk {
     }
   }
 
-  async createUser(registerData: User): Promise<UnifiedResponse<RegisterResponse>> {
-    const nodeId = this.generateNodeId();
-    const nodePublicKey = this.generateDummyPublicKey();
-
-    const requestData = {
-      ...registerData,
-      nodeId,
-      nodePublicKey,
-    };
-
-    const response = await this.api.post<UnifiedResponse<RegisterResponse>>('/user/sdk/register', requestData);
+  async createUser(registerData: RegisterData): Promise<UnifiedResponse<RegisterResponse>> {
+    const response = await this.api.post<UnifiedResponse<RegisterResponse>>('/sdk/user/register', registerData);
     return response.data || { success: false, error: { message: 'No response data', code: response.status } };
   }
 
@@ -365,13 +356,11 @@ class GridlockSdk {
     if (!this.db) {
       return { success: false, error: { message: 'Database not initialized' } };
     }
-    console.log('showNettttttttttttttt'); // TODO - remove this
     try {
       const collection = this.db.collection('guardians');
       const guardians = await collection.find({}).toArray();
       return { success: true, payload: guardians };
     } catch (error) {
-      console.log('errorrrrrrrrrrrrrrrrrrrr', error); // TODO - remove this
       return { success: false, error: { message: (error as Error).message } };
     }
   }
