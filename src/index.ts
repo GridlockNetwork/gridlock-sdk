@@ -145,7 +145,7 @@ class GridlockSdk {
   }
 
   async createUser(registerData: RegisterData): Promise<UnifiedResponse<RegisterResponse>> {
-    const response = await this.api.post<UnifiedResponse<RegisterResponse>>('/sdk/user/register', registerData);
+    const response = await this.api.post<UnifiedResponse<RegisterResponse>>('/v1/auth/register', registerData);
     if (response.data?.success !== undefined) {
       return response.data;
     }

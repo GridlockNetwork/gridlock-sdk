@@ -44,11 +44,13 @@ export interface UserStatusResponse {
 }
 
 export interface Guardian {
-  nodeId: string;
+  index: number;
   name: string;
-  type: string;
-  active: boolean;
+  type: 'ownerGuardian' | 'userGuardian' | 'gridlockGuardian' | 'partnerGuardian';
+  nodeId: string;
   publicKey: string;
+  active: boolean;
+  modified: string;
 }
 
 export interface ReplaceGuardianResponse {
@@ -67,3 +69,5 @@ export interface ReplaceGuardianResponse {
   };
   updatedUser: User;
 }
+
+
