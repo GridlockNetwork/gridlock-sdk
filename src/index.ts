@@ -27,9 +27,16 @@ interface IGridlockSdkProps {
 }
 
 interface ILoginResponse {
-  message: string;
-  user: IUser;
-  token: string;
+  tokens: {
+    access: {
+      token: string;
+      expires: string;
+    };
+    refresh: {
+      token: string;
+      expires: string;
+    };
+  };
 }
 
 interface IRegisterResponse {
@@ -99,7 +106,6 @@ class GridlockSdk {
   private addInterceptors = () => {
     this.api.axiosInstance.interceptors.request.use(request => {
       this.log(`<- ${moment().format('HH:mm:ss')}: ${request.method?.toUpperCase()}: ${request.url} `);
-
       return request;
     });
 
@@ -132,6 +138,8 @@ class GridlockSdk {
   };
 
   refreshRequestHandler(token: string) {
+    console.log('Old Auth Token:', this.authToken); //debug //this doesn't persist across cli commands. It's always undefined. i think it's because the sdk is reinitialized every time
+    console.log('New Token:', token); //debug
     this.authToken = token;
     this.api = create({
       baseURL: this.baseUrl,
@@ -161,9 +169,7 @@ class GridlockSdk {
   async loginWithToken(refreshToken: string): Promise<IUnifiedResponse<ILoginResponse>> {
     const response = await this.api.post<IUnifiedResponse<ILoginResponse>>('/v1/auth/refresh-tokens', { refreshToken });
     if (response.data?.success) {
-      const payload = response.data.payload;
-      const newToken = payload.token;
-      const user = payload.user;
+      const newToken = response.data.payload.tokens.access.token;
 
       this.refreshRequestHandler(newToken);
     }
@@ -302,7 +308,7 @@ class GridlockSdk {
       const loginResponse = await this.api.post<IUnifiedResponse<ILoginResponse>>('/v1/auth/login', { user, signature: signature.toString('base64') });
       if (loginResponse.data?.success) {
 
-        const newToken = loginResponse.data.payload.token;
+        const newToken = loginResponse.data.payload.tokens.access.token;
         this.refreshRequestHandler(newToken);
         return loginResponse.data;
       }
@@ -312,6 +318,15 @@ class GridlockSdk {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return { success: false, error: { message: errorMessage, code: 500 } };
     }
+  }
+
+  async addGuardian(guardian: IGuardian): Promise<IUnifiedResponse<any>> {
+    const response = await this.api.post<IUnifiedResponse<any>>('/v1/users/addGuardian', guardian);
+
+    if (response.data?.success) {
+      return response.data;
+    }
+    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
   }
 }
 
