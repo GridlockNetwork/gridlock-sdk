@@ -1,6 +1,6 @@
-import { User } from './User';
+import { IUser } from './User';
 
-interface Status {
+interface IStatus {
   degraded: boolean;
   healthyGuardians: number;
   regenOkGuardians: number;
@@ -21,7 +21,7 @@ interface Status {
   nftEthereum: number;
   nftSolana: number;
 }
-interface GuardianStatus {
+interface IGuardianStatus {
   name: string;
   lastseen: string;
   regenStatusOK: boolean;
@@ -32,28 +32,28 @@ interface GuardianStatus {
   possibleFailingReason: string;
 }
 
-export interface UserStatusResponse {
+export interface IUserStatusResponse {
   email: string;
   userId: string;
   nodeId: string;
   created: string;
   lastLogin: string;
-  status: Status;
-  guardian: GuardianStatus[];
-  user: User;
+  status: IStatus;
+  guardian: IGuardianStatus[];
+  user: IUser;
 }
 
-export interface Guardian {
+export interface IGuardian {
   index: number;
   name: string;
-  type: 'ownerGuardian' | 'userGuardian' | 'gridlockGuardian' | 'partnerGuardian';
+  type: 'ownerGuardian' | 'socialGuardian' | 'localGuardian' | 'cloudGuardian' | 'gridlockGuardian' | 'partnerGuardian';
   nodeId: string;
   publicKey: string;
   active: boolean;
   modified: string;
 }
 
-export interface ReplaceGuardianResponse {
+export interface IReplaceGuardianResponse {
   status: string;
   code: string;
   newNode: {
@@ -67,7 +67,7 @@ export interface ReplaceGuardianResponse {
     node: string;
     approvedBy: string[];
   };
-  updatedUser: User;
+  updatedUser: IUser;
 }
 
 

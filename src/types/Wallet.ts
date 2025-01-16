@@ -1,12 +1,12 @@
-import { Guardian } from './Guardians';
+import { IGuardian } from './Guardians';
 
-export interface CoinWallet {
+export interface ICoinWallet {
   _id: string;
   active: boolean;
   network: string;
   created: string;
-  associatedGuardians: Guardian[];
-  transactions?: Transaction[];
+  associatedGuardians: IGuardian[];
+  transactions?: ITransaction[];
   userId: string;
   address: string;
   keyId: string;
@@ -16,7 +16,7 @@ export interface CoinWallet {
   type?: string;
 }
 
-interface BaseTransaction {
+interface IBaseTransaction {
   fromAddress: string;
   toAddress: string;
   hash: string;
@@ -26,7 +26,7 @@ interface BaseTransaction {
   created: Date | string;
 }
 
-interface Transaction extends BaseTransaction {
+interface ITransaction extends IBaseTransaction {
   _id?: string;
   timestamp?: number;
   value: string | number;
@@ -40,15 +40,15 @@ interface Transaction extends BaseTransaction {
   preBalance: number;
 }
 
-export interface GiftCoinWallet extends CoinWallet {
+export interface IGiftCoinWallet extends ICoinWallet {
   code?: string;
 }
 
-export interface CreateMultipleWalletResponse {
+export interface ICreateMultipleWalletResponse {
   message: string;
   solanaAddress?: string;
   status: string;
-  walletList: CoinWallet[];
+  walletList: ICoinWallet[];
   errors: string[];
-  carrierWallet?: GiftCoinWallet;
+  carrierWallet?: IGiftCoinWallet;
 }
