@@ -138,8 +138,8 @@ class GridlockSdk {
   };
 
   refreshRequestHandler(token: string) {
-    console.log('Old Auth Token:', this.authToken); //debug //this doesn't persist across cli commands. It's always undefined. i think it's because the sdk is reinitialized every time
-    console.log('New Token:', token); //debug
+    // console.log('Old Auth Token:', this.authToken); //debug //this doesn't persist across cli commands. It's always undefined. i think it's because the sdk is reinitialized every time
+    // console.log('New Token:', token); //debug
     this.authToken = token;
     this.api = create({
       baseURL: this.baseUrl,
@@ -158,8 +158,8 @@ class GridlockSdk {
     return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
   }
 
-  async createWallets(coinTypes: string[]): Promise<IUnifiedResponse<ICoinWallet[]>> {
-    const response = await this.api.post<IUnifiedResponse<ICoinWallet[]>>('/wallet/create_multiple', { coinTypes });
+  async createWallets(blockchain: string[]): Promise<IUnifiedResponse<ICoinWallet[]>> {
+    const response = await this.api.post<IUnifiedResponse<ICoinWallet[]>>('/v1/wallets', { blockchain });
     if (response.data?.success !== undefined) {
       return response.data;
     }
