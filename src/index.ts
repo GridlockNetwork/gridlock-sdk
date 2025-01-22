@@ -6,7 +6,7 @@ import { hashMessage, recoverAddress } from 'ethers';
 import { IUser, IRegisterData } from './types/User';
 import moment from 'moment';
 import { IReplaceGuardianResponse, IUserStatusResponse, IGuardian } from './types/Guardians';
-import { ICoinWallet, ICreateMultipleWalletResponse } from './types/Wallet';
+import { ICoinWallet } from './types/Wallet';
 
 import nacl from 'tweetnacl';
 import pkg from 'tweetnacl-util';
@@ -46,7 +46,7 @@ interface IRegisterResponse {
 }
 
 type IUnifiedResponse<T> =
-  | { success: true; payload: T } // For success
+  | { success: true; data: T } // For success
   | { success: false; error: { message: string; code?: number }, raw?: any }; // For failure
 
 class GridlockSdk {
@@ -110,9 +110,8 @@ class GridlockSdk {
     });
 
     this.api.axiosInstance.interceptors.response.use(
-      (response: AxiosResponse) => {
+      (response) => {
         this.log(`-> :${moment().format('HH:mm:ss')}: ${response.config.method?.toUpperCase()}: ${response.config.url} -- ${response.status}`);
-
         return response;
       },
       async error => {
@@ -151,48 +150,34 @@ class GridlockSdk {
   }
 
   async createUser(registerData: IRegisterData): Promise<IUnifiedResponse<IRegisterResponse>> {
-    const response = await this.api.post<IUnifiedResponse<IRegisterResponse>>('/v1/auth/register', registerData);
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    const response = await this.api.post<IRegisterResponse>('/v1/auth/register', registerData);
+    return this.toUnifiedResponse<IRegisterResponse>(response);
   }
 
-  async createWallets(blockchain: string[]): Promise<IUnifiedResponse<ICoinWallet[]>> {
-    const response = await this.api.post<IUnifiedResponse<ICoinWallet[]>>('/v1/wallets', { blockchain });
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+  async createWallets(blockchain: string[], user: IUser): Promise<IUnifiedResponse<ICoinWallet[]>> {
+    const response = await this.api.post<ICoinWallet[]>('/v1/wallets', { blockchain, user });
+    return this.toUnifiedResponse<ICoinWallet[]>(response);
   }
 
   async loginWithToken(refreshToken: string): Promise<IUnifiedResponse<ILoginResponse>> {
-    const response = await this.api.post<IUnifiedResponse<ILoginResponse>>('/v1/auth/refresh-tokens', { refreshToken });
-    if (response.data?.success) {
-      const newToken = response.data.payload.tokens.access.token;
-
-      this.refreshRequestHandler(newToken);
+    const response = await this.api.post<ILoginResponse>('/v1/auth/refresh-tokens', { refreshToken });
+    if (response.status && response.status >= 200 && response.status < 300) {
+      const newToken = response.data?.tokens.access.token;
+      if (newToken) {
+        this.refreshRequestHandler(newToken);
+      }
     }
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    return this.toUnifiedResponse<ILoginResponse>(response);
   }
 
-  async signMessage(message: string, coinType: string): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<IUnifiedResponse<any>>('/transaction/sdk/signMessageSdk', { message, coinType });
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+  async sign(message: string, wallet: string, user: IUser): Promise<IUnifiedResponse<any>> {
+    const response = await this.api.post<any>('/v1/wallets/sign', { message, wallet, user });
+    return this.toUnifiedResponse<any>(response);
   }
 
   async signTx(tx: string, coinType: string): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<IUnifiedResponse<any>>('/transaction/sdk/signTx', { tx, coinType });
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    const response = await this.api.post<any>('/transaction/sdk/signTx', { tx, coinType });
+    return this.toUnifiedResponse<any>(response);
   }
 
   async verifySignature(coinType: string, message: string, signature: string, expectedAddress: string): Promise<IUnifiedResponse<boolean>> {
@@ -204,19 +189,16 @@ class GridlockSdk {
       if (coinType === ETHEREUM) {
         const messageHash = hashMessage(message);
         const recoveredAddress = recoverAddress(messageHash, signature);
-
         const isValid = recoveredAddress?.toLowerCase() === expectedAddress?.toLowerCase();
-
-        return { success: true, payload: isValid };
+        return { success: true, data: isValid };
       }
 
       if (coinType === SOLANA) {
         const messageBytes = decodeUTF8(message);
         const signatureBytes = bs58.decode(signature);
         const addressBytes = bs58.decode(expectedAddress);
-
         const isVerified = nacl.sign.detached.verify(messageBytes, signatureBytes, addressBytes);
-        return { success: true, payload: isVerified };
+        return { success: true, data: isVerified };
       }
     } catch (error) {
       return { success: false, error: { message: 'Error trying to check signature' } };
@@ -226,78 +208,54 @@ class GridlockSdk {
   }
 
   async getNodes(): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<IUnifiedResponse<IUserStatusResponse>>('monitoring/userStatusV2');
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    const response = await this.api.post<IUserStatusResponse>('monitoring/userStatusV2');
+    return this.toUnifiedResponse<IUserStatusResponse>(response);
   }
 
   async getUser(): Promise<IUnifiedResponse<IUser>> {
-    const response = await this.api.get<IUnifiedResponse<IUser>>('/user');
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    const response = await this.api.get<IUser>('/user');
+    return this.toUnifiedResponse<IUser>(response);
   }
 
   async getWallets(): Promise<IUnifiedResponse<ICoinWallet[]>> {
-    const response = await this.api.get<IUnifiedResponse<ICoinWallet[]>>('/wallet');
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    const response = await this.api.get<ICoinWallet[]>('/wallet');
+    return this.toUnifiedResponse<ICoinWallet[]>(response);
   }
 
   async deleteUser(): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.delete<IUnifiedResponse<any>>('/user/safe');
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    const response = await this.api.delete<any>('/user/safe');
+    return this.toUnifiedResponse<any>(response);
   }
 
   async addUserGuardian(data: { name: string }): Promise<IUnifiedResponse<Omit<IReplaceGuardianResponse, 'state'>>> {
-    const response = await this.api.post<IUnifiedResponse<Omit<IReplaceGuardianResponse, 'state'>>>('user/guardian/add', data);
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    const response = await this.api.post<Omit<IReplaceGuardianResponse, 'state'>>('user/guardian/add', data);
+    return this.toUnifiedResponse<Omit<IReplaceGuardianResponse, 'state'>>(response);
   }
 
   async generateGuardianDeeplink(params: any): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<IUnifiedResponse<any>>('/user/generateLink', { params });
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    const response = await this.api.post<any>('/user/generateLink', { params });
+    return this.toUnifiedResponse<any>(response);
   }
 
   async getGridlockGuardian(): Promise<IUnifiedResponse<IGuardian>> {
-    const response = await this.api.get<IUnifiedResponse<IGuardian>>('/sdk/guardian/gridlock');
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    const response = await this.api.get<IGuardian>('/sdk/guardian/gridlock');
+    return this.toUnifiedResponse<IGuardian>(response);
   }
 
   async getPartnerGuardian(): Promise<IUnifiedResponse<IGuardian>> {
-    const response = await this.api.get<IUnifiedResponse<IGuardian>>('/sdk/guardian/partner');
-    if (response.data?.success !== undefined) {
-      return response.data;
-    }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
+    const response = await this.api.get<IGuardian>('/sdk/guardian/partner');
+    return this.toUnifiedResponse<IGuardian>(response);
   }
 
   async loginWithKey(user: IUser, privateKeyBuffer: string): Promise<IUnifiedResponse<ILoginResponse>> {
     try {
       const { nodeId } = user.ownerGuardian;
-      const nonceResponse = await this.api.post<IUnifiedResponse<{ nonce: string }>>('/v1/auth/nonce', { nodeId });
+      const nonceResponse = await this.api.post<{ nonce: string }>('/v1/auth/nonce', { nodeId });
 
-      if (!nonceResponse.data?.success) {
+      if (!nonceResponse.data || !nonceResponse.data.nonce) {
         return { success: false, error: { message: 'Failed to get nonce', code: nonceResponse.status }, raw: nonceResponse.data };
       }
-      const nonce = nonceResponse.data.payload.nonce;
+      const nonce = nonceResponse.data.nonce;
 
       const signature = crypto.sign(null, Buffer.from(nonce, 'hex'), {
         key: privateKeyBuffer,
@@ -305,15 +263,15 @@ class GridlockSdk {
         type: 'pkcs8',
       });
 
-      const loginResponse = await this.api.post<IUnifiedResponse<ILoginResponse>>('/v1/auth/login', { user, signature: signature.toString('base64') });
-      if (loginResponse.data?.success) {
-
-        const newToken = loginResponse.data.payload.tokens.access.token;
-        this.refreshRequestHandler(newToken);
-        return loginResponse.data;
+      const loginResponse = await this.api.post<ILoginResponse>('/v1/auth/login', { user, signature: signature.toString('base64') });
+      if (loginResponse.status && loginResponse.status >= 200 && loginResponse.status < 300) {
+        const newToken = loginResponse.data?.tokens.access.token;
+        if (newToken) {
+          this.refreshRequestHandler(newToken);
+        }
       }
 
-      return { success: false, error: { message: 'Unknown error', code: loginResponse.status }, raw: loginResponse.data };
+      return this.toUnifiedResponse<ILoginResponse>(loginResponse);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return { success: false, error: { message: errorMessage, code: 500 } };
@@ -321,12 +279,16 @@ class GridlockSdk {
   }
 
   async addGuardian(guardian: IGuardian): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<IUnifiedResponse<any>>('/v1/users/addGuardian', guardian);
+    const response = await this.api.post<any>('/v1/users/addGuardian', guardian);
+    return this.toUnifiedResponse<any>(response);
+  }
 
-    if (response.data?.success) {
-      return response.data;
+  private toUnifiedResponse<T>(response: ApisauceInstance['post'] extends (...args: any[]) => Promise<infer R> ? R : never): IUnifiedResponse<T> {
+    if (response.ok) {
+      return { success: true, data: response.data as T };
+    } else {
+      return { success: false, error: { message: response.problem || 'Unknown error', code: response.status }, raw: response.data };
     }
-    return { success: false, error: { message: 'Unknown error', code: response.status }, raw: response.data };
   }
 }
 
