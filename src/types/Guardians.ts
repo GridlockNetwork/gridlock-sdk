@@ -1,4 +1,4 @@
-import { IUser } from './User';
+import { IUser } from "./User";
 
 interface IStatus {
   degraded: boolean;
@@ -46,7 +46,13 @@ export interface IUserStatusResponse {
 export interface IGuardian {
   index: number;
   name: string;
-  type: 'ownerGuardian' | 'socialGuardian' | 'localGuardian' | 'cloudGuardian' | 'gridlockGuardian' | 'partnerGuardian';
+  type:
+    | "ownerGuardian"
+    | "socialGuardian"
+    | "localGuardian"
+    | "cloudGuardian"
+    | "gridlockGuardian"
+    | "partnerGuardian";
   nodeId: string;
   publicKey: string;
   active: boolean;
@@ -69,5 +75,3 @@ export interface IReplaceGuardianResponse {
   };
   updatedUser: IUser;
 }
-
-

@@ -1,4 +1,4 @@
-import { IGuardian } from './Guardians';
+import { IGuardian } from "./Guardians";
 
 export interface IUser {
   email: string;
@@ -49,7 +49,7 @@ export interface IProtectingUser {
   nodeId: string;
   profilePhotoUrl?: string;
   nodePool: INodePool[];
-  actionRequired?: { type: 'restoreAccount'; code: string }; // TODO add enum
+  actionRequired?: { type: "restoreAccount"; code: string }; // TODO add enum
 }
 
 export interface IMintStatus {

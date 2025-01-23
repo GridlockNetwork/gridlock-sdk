@@ -1,4 +1,4 @@
-import { IGuardian } from './Guardians';
+import { IGuardian } from "./Guardians";
 
 export interface ICoinWallet {
   _id: string;
@@ -12,7 +12,7 @@ export interface ICoinWallet {
   keyId: string;
   balance: string;
   balanceAsDecimal: number;
-  coinType: 'ethereum' | 'solana';
+  coinType: "ethereum" | "solana";
   type?: string;
 }
 
