@@ -278,8 +278,11 @@ class GridlockSdk {
     }
   }
 
-  async addGuardian(guardian: IGuardian): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<any>('/v1/users/addGuardian', guardian);
+  async addGuardian(guardian: IGuardian, isOwnerGuardian: boolean): Promise<IUnifiedResponse<any>> {
+    const response = await this.api.post<any>('/v1/users/addGuardian', {
+      guardian,
+      isOwnerGuardian
+    });
     return this.toUnifiedResponse<any>(response);
   }
 

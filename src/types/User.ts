@@ -3,7 +3,6 @@ import { IGuardian } from './Guardians';
 export interface IUser {
   email: string;
   name?: string;
-  password: string;
   role: string;
   isEmailVerified: boolean;
   ownerGuardian: IGuardian;
@@ -81,6 +80,6 @@ export interface IProtectingInvite {
 
 export interface IRegisterData {
   email: string;
-  password: string;
+  name: string;
   guardians: IGuardian[];
 }
