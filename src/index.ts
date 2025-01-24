@@ -31,7 +31,7 @@ interface IGridlockSdkProps {
 }
 
 interface ILoginResponse {
-  tokens: {
+  authTokens: {
     access: {
       token: string;
       expires: string;
@@ -46,7 +46,7 @@ interface ILoginResponse {
 interface IRegisterResponse {
   message: string;
   user: IUser;
-  token: string;
+  authTokens: string;
 }
 
 type IUnifiedResponse<T> =
@@ -58,7 +58,7 @@ class GridlockSdk {
   private baseUrl: string;
   private verbose: boolean;
   private logger: any;
-  private authToken: string = "";
+  private accessToken: string = "";
   private retriedRequest: boolean = false; // flag to track if a request has been retried
 
   api: ApisauceInstance;
@@ -112,7 +112,7 @@ class GridlockSdk {
       this.log(
         `<- ${moment().format("HH:mm:ss")}: ${request.method?.toUpperCase()}: ${
           request.url
-        } `,
+        } `
       );
       return request;
     });
@@ -121,31 +121,32 @@ class GridlockSdk {
       (response) => {
         this.log(
           `-> :${moment().format(
-            "HH:mm:ss",
+            "HH:mm:ss"
           )}: ${response.config.method?.toUpperCase()}: ${
             response.config.url
-          } -- ${response.status}`,
+          } -- ${response.status}`
         );
         return response;
       },
       async (error) => {
         this.log(
           `ERROR-> ${moment().format(
-            "HH:mm:ss",
+            "HH:mm:ss"
           )}: ${error.config.method?.toUpperCase()}: ${error.config.url} -- ${
             error?.response?.status
-          }`,
+          }`
         );
         if (error?.response?.status === 401) {
           if (!this.retriedRequest) {
             this.log("Token expired, trying to refresh it");
-            const token = this.authToken;
+            const token = this.accessToken;
             const refreshResponse = await this.loginWithToken(token);
 
             if (refreshResponse) {
               // retry the original request with the new token
-              error.config.headers["Authorization"] =
-                `Bearer ${this.authToken}`;
+              error.config.headers[
+                "Authorization"
+              ] = `Bearer ${this.accessToken}`;
               this.retriedRequest = true;
               return this.api.axiosInstance.request(error.config);
             }
@@ -153,14 +154,14 @@ class GridlockSdk {
         }
         this.retriedRequest = false;
         return Promise.reject(error);
-      },
+      }
     );
   };
 
   refreshRequestHandler(token: string) {
-    // console.log('Old Auth Token:', this.authToken); //debug //this doesn't persist across cli commands. It's always undefined. i think it's because the sdk is reinitialized every time
+    // console.log('Old Auth Token:', this.accessToken); //debug //this doesn't persist across cli commands. It's always undefined. i think it's because the sdk is reinitialized every time
     // console.log('New Token:', token); //debug
-    this.authToken = token;
+    this.accessToken = token;
     this.api = create({
       baseURL: this.baseUrl,
       headers: {
@@ -171,18 +172,18 @@ class GridlockSdk {
   }
 
   async createUser(
-    registerData: IRegisterData,
+    registerData: IRegisterData
   ): Promise<IUnifiedResponse<IRegisterResponse>> {
     const response = await this.api.post<IRegisterResponse>(
       "/v1/auth/register",
-      registerData,
+      registerData
     );
     return this.toUnifiedResponse<IRegisterResponse>(response);
   }
 
   async createWallets(
     blockchain: string[],
-    user: IUser,
+    user: IUser
   ): Promise<IUnifiedResponse<ICoinWallet[]>> {
     const response = await this.api.post<ICoinWallet[]>("/v1/wallets", {
       blockchain,
@@ -192,16 +193,16 @@ class GridlockSdk {
   }
 
   async loginWithToken(
-    refreshToken: string,
+    refreshToken: string
   ): Promise<IUnifiedResponse<ILoginResponse>> {
     const response = await this.api.post<ILoginResponse>(
       "/v1/auth/refresh-tokens",
-      { refreshToken },
+      { refreshToken }
     );
     if (response.status && response.status >= 200 && response.status < 300) {
-      const newToken = response.data?.tokens.access.token;
-      if (newToken) {
-        this.refreshRequestHandler(newToken);
+      const newAccessToken = response.data?.authTokens.access.token;
+      if (newAccessToken) {
+        this.refreshRequestHandler(newAccessToken);
       }
     }
     return this.toUnifiedResponse<ILoginResponse>(response);
@@ -210,7 +211,7 @@ class GridlockSdk {
   async sign(
     message: string,
     wallet: string,
-    user: IUser,
+    user: IUser
   ): Promise<IUnifiedResponse<any>> {
     const response = await this.api.post<any>("/v1/wallets/sign", {
       message,
@@ -232,7 +233,7 @@ class GridlockSdk {
     coinType: string,
     message: string,
     signature: string,
-    expectedAddress: string,
+    expectedAddress: string
   ): Promise<IUnifiedResponse<boolean>> {
     if (!SUPPORTED_COINS.includes(coinType)) {
       return { success: false, error: { message: "Invalid coin type" } };
@@ -254,7 +255,7 @@ class GridlockSdk {
         const isVerified = nacl.sign.detached.verify(
           messageBytes,
           signatureBytes,
-          addressBytes,
+          addressBytes
         );
         return { success: true, data: isVerified };
       }
@@ -270,7 +271,7 @@ class GridlockSdk {
 
   async getNodes(): Promise<IUnifiedResponse<any>> {
     const response = await this.api.post<IUserStatusResponse>(
-      "monitoring/userStatusV2",
+      "monitoring/userStatusV2"
     );
     return this.toUnifiedResponse<IUserStatusResponse>(response);
   }
@@ -297,7 +298,7 @@ class GridlockSdk {
       Omit<IReplaceGuardianResponse, "state">
     >("user/guardian/add", data);
     return this.toUnifiedResponse<Omit<IReplaceGuardianResponse, "state">>(
-      response,
+      response
     );
   }
 
@@ -318,13 +319,13 @@ class GridlockSdk {
 
   async loginWithKey(
     user: IUser,
-    privateKeyBuffer: string,
+    privateKeyBuffer: string
   ): Promise<IUnifiedResponse<ILoginResponse>> {
     try {
       const { nodeId } = user.ownerGuardian;
       const nonceResponse = await this.api.post<{ nonce: string }>(
         "/v1/auth/nonce",
-        { nodeId },
+        { nodeId }
       );
 
       if (!nonceResponse.data || !nonceResponse.data.nonce) {
@@ -344,16 +345,16 @@ class GridlockSdk {
 
       const loginResponse = await this.api.post<ILoginResponse>(
         "/v1/auth/login",
-        { user, signature: signature.toString("base64") },
+        { user, signature: signature.toString("base64") }
       );
       if (
         loginResponse.status &&
         loginResponse.status >= 200 &&
         loginResponse.status < 300
       ) {
-        const newToken = loginResponse.data?.tokens.access.token;
-        if (newToken) {
-          this.refreshRequestHandler(newToken);
+        const newAccessToken = loginResponse.data?.authTokens.access.token;
+        if (newAccessToken) {
+          this.refreshRequestHandler(newAccessToken);
         }
       }
 
@@ -367,7 +368,7 @@ class GridlockSdk {
 
   async addGuardian(
     guardian: IGuardian,
-    isOwnerGuardian: boolean,
+    isOwnerGuardian: boolean
   ): Promise<IUnifiedResponse<any>> {
     const response = await this.api.post<any>("/v1/users/addGuardian", {
       guardian,
@@ -381,7 +382,7 @@ class GridlockSdk {
       ...args: any[]
     ) => Promise<infer R>
       ? R
-      : never,
+      : never
   ): IUnifiedResponse<T> {
     if (response.ok) {
       return { success: true, data: response.data as T };
