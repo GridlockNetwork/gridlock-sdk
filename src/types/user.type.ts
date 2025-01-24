@@ -1,4 +1,4 @@
-import { IGuardian } from "./Guardians";
+import { IGuardian } from "./guardian.type";
 
 export interface IUser {
   email: string;
@@ -81,5 +81,4 @@ export interface IProtectingInvite {
 export interface IRegisterData {
   email: string;
   name: string;
-  guardians: IGuardian[];
 }

@@ -1,19 +1,14 @@
-import { IGuardian } from "./Guardians";
+import { IGuardian } from "./guardian.type";
 
-export interface ICoinWallet {
-  _id: string;
-  active: boolean;
-  network: string;
-  created: string;
-  associatedGuardians: IGuardian[];
-  transactions?: ITransaction[];
+export interface IWallet {
   userId: string;
-  address: string;
   keyId: string;
-  balance: string;
-  balanceAsDecimal: number;
-  coinType: "ethereum" | "solana";
-  type?: string;
+  name: string;
+  network: "main" | "ropsten" | "rinkeby";
+  address: string;
+  pubKey: string;
+  blockchain: "ethereum" | "solana";
+  associatedGuardians: IGuardian[];
 }
 
 interface IBaseTransaction {
@@ -40,7 +35,7 @@ interface ITransaction extends IBaseTransaction {
   preBalance: number;
 }
 
-export interface IGiftCoinWallet extends ICoinWallet {
+export interface IGiftCoinWallet extends IWallet {
   code?: string;
 }
 
@@ -48,7 +43,7 @@ export interface ICreateMultipleWalletResponse {
   message: string;
   solanaAddress?: string;
   status: string;
-  walletList: ICoinWallet[];
+  walletList: IWallet[];
   errors: string[];
   carrierWallet?: IGiftCoinWallet;
 }

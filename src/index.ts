@@ -3,14 +3,15 @@ import { AxiosResponse } from "axios";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 import { hashMessage, recoverAddress } from "ethers";
-import { IUser, IRegisterData } from "./types/User";
+import { IUser, IRegisterData } from "./types/user.type";
+import { ILoginResponse, IRegisterResponse } from "./types/auth.type";
 import moment from "moment";
 import {
   IReplaceGuardianResponse,
   IUserStatusResponse,
   IGuardian,
-} from "./types/Guardians";
-import { ICoinWallet } from "./types/Wallet";
+} from "./types/guardian.type";
+import { IWallet } from "./types/wallet.type";
 
 import nacl from "tweetnacl";
 import pkg from "tweetnacl-util";
@@ -28,25 +29,6 @@ interface IGridlockSdkProps {
   baseUrl: string;
   verbose: boolean;
   logger: any;
-}
-
-interface ILoginResponse {
-  authTokens: {
-    access: {
-      token: string;
-      expires: string;
-    };
-    refresh: {
-      token: string;
-      expires: string;
-    };
-  };
-}
-
-interface IRegisterResponse {
-  message: string;
-  user: IUser;
-  authTokens: string;
 }
 
 type IUnifiedResponse<T> =
@@ -79,6 +61,10 @@ class GridlockSdk {
     });
 
     this.addInterceptors();
+  }
+
+  setVerbose(verbose: boolean) {
+    this.verbose = verbose;
   }
 
   private generateNodeId() {
@@ -181,15 +167,15 @@ class GridlockSdk {
     return this.toUnifiedResponse<IRegisterResponse>(response);
   }
 
-  async createWallets(
-    blockchain: string[],
+  async createWallet(
+    blockchain: string,
     user: IUser
-  ): Promise<IUnifiedResponse<ICoinWallet[]>> {
-    const response = await this.api.post<ICoinWallet[]>("/v1/wallets", {
+  ): Promise<IUnifiedResponse<IWallet>> {
+    const response = await this.api.post<IWallet>("/v1/wallets", {
       blockchain,
       user,
     });
-    return this.toUnifiedResponse<ICoinWallet[]>(response);
+    return this.toUnifiedResponse<IWallet>(response);
   }
 
   async loginWithToken(
@@ -281,9 +267,9 @@ class GridlockSdk {
     return this.toUnifiedResponse<IUser>(response);
   }
 
-  async getWallets(): Promise<IUnifiedResponse<ICoinWallet[]>> {
-    const response = await this.api.get<ICoinWallet[]>("/wallet");
-    return this.toUnifiedResponse<ICoinWallet[]>(response);
+  async getWallets(): Promise<IUnifiedResponse<IWallet[]>> {
+    const response = await this.api.get<IWallet[]>("/wallet");
+    return this.toUnifiedResponse<IWallet[]>(response);
   }
 
   async deleteUser(): Promise<IUnifiedResponse<any>> {
@@ -307,7 +293,7 @@ class GridlockSdk {
     return this.toUnifiedResponse<any>(response);
   }
 
-  async getGridlockGuardian(): Promise<IUnifiedResponse<IGuardian>> {
+  async getGridlockGuardians(): Promise<IUnifiedResponse<IGuardian>> {
     const response = await this.api.get<IGuardian>("/sdk/guardian/gridlock");
     return this.toUnifiedResponse<IGuardian>(response);
   }
