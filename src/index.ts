@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 import { hashMessage, recoverAddress } from "ethers";
 import { IUser, IRegisterData } from "./types/user.type";
-import { ILoginResponse, IRegisterResponse } from "./types/auth.type";
+import { AccessAndRefreshTokens, IRegisterResponse } from "./types/auth.type";
 import moment from "moment";
 import {
   IReplaceGuardianResponse,
@@ -180,18 +180,18 @@ class GridlockSdk {
 
   async loginWithToken(
     refreshToken: string
-  ): Promise<IUnifiedResponse<ILoginResponse>> {
-    const response = await this.api.post<ILoginResponse>(
+  ): Promise<IUnifiedResponse<AccessAndRefreshTokens>> {
+    const response = await this.api.post<AccessAndRefreshTokens>(
       "/v1/auth/refresh-tokens",
       { refreshToken }
     );
     if (response.status && response.status >= 200 && response.status < 300) {
-      const newAccessToken = response.data?.authTokens.access.token;
+      const newAccessToken = response.data?.access.token;
       if (newAccessToken) {
         this.refreshRequestHandler(newAccessToken);
       }
     }
-    return this.toUnifiedResponse<ILoginResponse>(response);
+    return this.toUnifiedResponse<AccessAndRefreshTokens>(response);
   }
 
   async sign(
@@ -306,7 +306,7 @@ class GridlockSdk {
   async loginWithKey(
     user: IUser,
     privateKeyBuffer: string
-  ): Promise<IUnifiedResponse<ILoginResponse>> {
+  ): Promise<IUnifiedResponse<AccessAndRefreshTokens>> {
     try {
       const { nodeId } = user.ownerGuardian;
       const nonceResponse = await this.api.post<{ nonce: string }>(
@@ -329,7 +329,7 @@ class GridlockSdk {
         type: "pkcs8",
       });
 
-      const loginResponse = await this.api.post<ILoginResponse>(
+      const loginResponse = await this.api.post<AccessAndRefreshTokens>(
         "/v1/auth/login",
         { user, signature: signature.toString("base64") }
       );
@@ -338,13 +338,13 @@ class GridlockSdk {
         loginResponse.status >= 200 &&
         loginResponse.status < 300
       ) {
-        const newAccessToken = loginResponse.data?.authTokens.access.token;
+        const newAccessToken = loginResponse.data?.access.token;
         if (newAccessToken) {
           this.refreshRequestHandler(newAccessToken);
         }
       }
 
-      return this.toUnifiedResponse<ILoginResponse>(loginResponse);
+      return this.toUnifiedResponse<AccessAndRefreshTokens>(loginResponse);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
@@ -352,13 +352,32 @@ class GridlockSdk {
     }
   }
 
-  async addGuardian(
-    guardian: IGuardian,
-    isOwnerGuardian: boolean
-  ): Promise<IUnifiedResponse<any>> {
+  async addGuardian({
+    guardian,
+    isOwnerGuardian,
+  }: {
+    guardian: IGuardian;
+    isOwnerGuardian: boolean;
+  }): Promise<IUnifiedResponse<any>> {
     const response = await this.api.post<any>("/v1/users/addGuardian", {
       guardian,
       isOwnerGuardian,
+    });
+    return this.toUnifiedResponse<any>(response);
+  }
+  async sendToGuardian({
+    nodeId,
+    encryptedMessage,
+    publicKey,
+  }: {
+    nodeId: string;
+    encryptedMessage: string;
+    publicKey: string;
+  }): Promise<IUnifiedResponse<any>> {
+    const response = await this.api.post<any>("/v1/auth/e2e", {
+      nodeId,
+      encryptedMessage,
+      publicKey,
     });
     return this.toUnifiedResponse<any>(response);
   }
