@@ -164,7 +164,6 @@ class GridlockSdk {
       "/v1/auth/register",
       registerData
     );
-    console.log("response", response);
     return this.toUnifiedResponse<IRegisterResponse>(response);
   }
 
