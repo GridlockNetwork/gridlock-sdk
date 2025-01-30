@@ -1,9 +1,9 @@
 import { IGuardian } from "./guardian.type";
+import { IUser } from "./user.type";
 
 export interface IWallet {
   userId: string;
   keyId: string;
-  name: string;
   network: "main" | "ropsten" | "rinkeby";
   address: string;
   pubKey: string;
@@ -46,4 +46,18 @@ export interface ICreateMultipleWalletResponse {
   walletList: IWallet[];
   errors: string[];
   carrierWallet?: IGiftCoinWallet;
+}
+
+export interface INodePassword {
+  nodeId: string;
+  encryptedSigningKey: string;
+}
+
+export interface IPasswordBundle {
+  nodes: INodePassword[];
+}
+export interface ICreateWalletParams {
+  blockchain: string;
+  user: IUser;
+  passwordBundle: IPasswordBundle;
 }

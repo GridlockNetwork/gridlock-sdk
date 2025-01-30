@@ -11,7 +11,7 @@ import {
   IUserStatusResponse,
   IGuardian,
 } from "./types/guardian.type";
-import { IWallet } from "./types/wallet.type";
+import { IWallet, ICreateWalletParams } from "./types/wallet.type";
 
 import nacl from "tweetnacl";
 import pkg from "tweetnacl-util";
@@ -164,17 +164,17 @@ class GridlockSdk {
       "/v1/auth/register",
       registerData
     );
+    console.log("response", response);
     return this.toUnifiedResponse<IRegisterResponse>(response);
   }
 
   async createWallet(
-    blockchain: string,
-    user: IUser
+    createWalletData: any
   ): Promise<IUnifiedResponse<IWallet>> {
-    const response = await this.api.post<IWallet>("/v1/wallets", {
-      blockchain,
-      user,
-    });
+    const response = await this.api.post<IWallet>(
+      "/v1/wallets",
+      createWalletData
+    );
     return this.toUnifiedResponse<IWallet>(response);
   }
 
@@ -194,24 +194,13 @@ class GridlockSdk {
     return this.toUnifiedResponse<AccessAndRefreshTokens>(response);
   }
 
-  async sign(
-    message: string,
-    wallet: string,
-    user: IUser
-  ): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<any>("/v1/wallets/sign", {
-      message,
-      wallet,
-      user,
-    });
-    return this.toUnifiedResponse<any>(response);
-  }
-
-  async signTx(tx: string, coinType: string): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<any>("/transaction/sdk/signTx", {
-      tx,
-      coinType,
-    });
+  async sign(signTransactionData: any): Promise<IUnifiedResponse<any>> {
+    //todo fix the any when I port the cli to the sdk
+    console.log("signTransactionData", signTransactionData);
+    const response = await this.api.post<any>(
+      "/v1/wallets/sign",
+      signTransactionData
+    );
     return this.toUnifiedResponse<any>(response);
   }
 
