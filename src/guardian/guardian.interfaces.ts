@@ -1,4 +1,4 @@
-import { IUser } from "./user.type";
+import { IUser } from "../user/user.interfaces.js";
 
 interface IStatus {
   degraded: boolean;
@@ -72,4 +72,11 @@ export interface IReplaceGuardianResponse {
     approvedBy: string[];
   };
   updatedUser: IUser;
+}
+
+export interface IAddGuardianParams {
+  email: string;
+  password: string;
+  guardian: IGuardian;
+  isOwnerGuardian: boolean;
 }

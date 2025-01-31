@@ -1,24 +1,25 @@
 import { ApisauceInstance, create } from "apisauce";
-import { AxiosResponse } from "axios";
+import { UserService } from "./user/user.service.js";
+import { GuardianService } from "./guardian/guardian.service.js";
+import { WalletService } from "./wallet/wallet.service.js";
+import { AuthService } from "./auth/index.js";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 import { hashMessage, recoverAddress } from "ethers";
-import { IUser, IRegisterData } from "./types/user.type";
-import { AccessAndRefreshTokens, IRegisterResponse } from "./types/auth.type";
+import {
+  IUser,
+  IRegisterData,
+  IRegisterResponse,
+} from "./user/user.interfaces.js";
+import { AccessAndRefreshTokens } from "./auth/auth.interfaces.js";
 import moment from "moment";
 import {
   IReplaceGuardianResponse,
   IUserStatusResponse,
   IGuardian,
-} from "./types/guardian.type";
-import { IWallet, ICreateWalletParams } from "./types/wallet.type";
-
-import nacl from "tweetnacl";
-import pkg from "tweetnacl-util";
-
-const { decodeUTF8 } = pkg;
-
-import bs58 from "bs58";
+} from "./guardian/guardian.interfaces.js";
+import { IWallet, ICreateWalletParams } from "./wallet/wallet.interfaces.js";
+import { IAddGuardianParams } from "./guardian/guardian.interfaces.js";
 
 export const ETHEREUM = "ethereum";
 export const SOLANA = "solana";
@@ -31,10 +32,6 @@ interface IGridlockSdkProps {
   logger: any;
 }
 
-type IUnifiedResponse<T> =
-  | { success: true; data: T } // For success
-  | { success: false; error: { message: string; code?: number }; raw?: any }; // For failure
-
 class GridlockSdk {
   private apiKey: string;
   private baseUrl: string;
@@ -44,6 +41,11 @@ class GridlockSdk {
   private retriedRequest: boolean = false; // flag to track if a request has been retried
 
   api: ApisauceInstance;
+
+  authService: AuthService;
+  userService: UserService;
+  guardianService: GuardianService;
+  walletService: WalletService;
 
   constructor(props: IGridlockSdkProps) {
     this.apiKey = props.apiKey;
@@ -60,6 +62,22 @@ class GridlockSdk {
       timeout: 60000,
     });
 
+    this.authService = new AuthService(this.api, props.logger, props.verbose);
+
+    this.userService = new UserService(this.api, this.logger, this.verbose);
+    this.walletService = new WalletService(
+      this.api,
+      this.authService,
+      this.logger,
+      this.verbose
+    );
+    this.guardianService = new GuardianService(
+      this.api,
+      this.authService,
+      props.logger,
+      props.verbose
+    );
+
     this.addInterceptors();
   }
 
@@ -70,21 +88,6 @@ class GridlockSdk {
   private generateNodeId() {
     return uuidv4();
   }
-
-  private generateDummyPublicKey = (length: number = 56) => {
-    let key = "";
-    while (key.length < length) {
-      const rawKey = crypto // use crypto to ensure true randomness
-        .randomBytes(Math.ceil((length * 3) / 4))
-        .toString("base64")
-        .replace(/[^A-Z0-9]/gi, "")
-        .toUpperCase();
-
-      key += rawKey;
-    }
-
-    return key.slice(0, length);
-  };
 
   private log = (...args: any[]) => {
     if (!this.logger || !this.verbose) return;
@@ -126,7 +129,9 @@ class GridlockSdk {
           if (!this.retriedRequest) {
             this.log("Token expired, trying to refresh it");
             const token = this.accessToken;
-            const refreshResponse = await this.loginWithToken(token);
+            const refreshResponse = await this.authService.loginWithToken(
+              token
+            );
 
             if (refreshResponse) {
               // retry the original request with the new token
@@ -157,50 +162,12 @@ class GridlockSdk {
     this.addInterceptors();
   }
 
-  async createUser(
-    registerData: IRegisterData
-  ): Promise<IUnifiedResponse<IRegisterResponse>> {
-    const response = await this.api.post<IRegisterResponse>(
-      "/v1/auth/register",
-      registerData
-    );
-    return this.toUnifiedResponse<IRegisterResponse>(response);
+  async createWallet(email: string, password: string, blockchain: string) {
+    return this.walletService.createWallet(email, password, blockchain);
   }
 
-  async createWallet(
-    createWalletData: any
-  ): Promise<IUnifiedResponse<IWallet>> {
-    const response = await this.api.post<IWallet>(
-      "/v1/wallets",
-      createWalletData
-    );
-    return this.toUnifiedResponse<IWallet>(response);
-  }
-
-  async loginWithToken(
-    refreshToken: string
-  ): Promise<IUnifiedResponse<AccessAndRefreshTokens>> {
-    const response = await this.api.post<AccessAndRefreshTokens>(
-      "/v1/auth/refresh-tokens",
-      { refreshToken }
-    );
-    if (response.status && response.status >= 200 && response.status < 300) {
-      const newAccessToken = response.data?.access.token;
-      if (newAccessToken) {
-        this.refreshRequestHandler(newAccessToken);
-      }
-    }
-    return this.toUnifiedResponse<AccessAndRefreshTokens>(response);
-  }
-
-  async sign(signTransactionData: any): Promise<IUnifiedResponse<any>> {
-    //todo fix the any when I port the cli to the sdk
-    console.log("signTransactionData", signTransactionData);
-    const response = await this.api.post<any>(
-      "/v1/wallets/sign",
-      signTransactionData
-    );
-    return this.toUnifiedResponse<any>(response);
+  async sign(signTransactionData: any) {
+    return this.walletService.sign(signTransactionData);
   }
 
   async verifySignature(
@@ -208,187 +175,71 @@ class GridlockSdk {
     message: string,
     signature: string,
     expectedAddress: string
-  ): Promise<IUnifiedResponse<boolean>> {
-    if (!SUPPORTED_COINS.includes(coinType)) {
-      return { success: false, error: { message: "Invalid coin type" } };
-    }
-
-    try {
-      if (coinType === ETHEREUM) {
-        const messageHash = hashMessage(message);
-        const recoveredAddress = recoverAddress(messageHash, signature);
-        const isValid =
-          recoveredAddress?.toLowerCase() === expectedAddress?.toLowerCase();
-        return { success: true, data: isValid };
-      }
-
-      if (coinType === SOLANA) {
-        const messageBytes = decodeUTF8(message);
-        const signatureBytes = bs58.decode(signature);
-        const addressBytes = bs58.decode(expectedAddress);
-        const isVerified = nacl.sign.detached.verify(
-          messageBytes,
-          signatureBytes,
-          addressBytes
-        );
-        return { success: true, data: isVerified };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: { message: "Error trying to check signature" },
-      };
-    }
-
-    return { success: false, error: { message: "Unsupported coin type" } };
+  ) {
+    return this.walletService.verifySignature(
+      coinType,
+      message,
+      signature,
+      expectedAddress
+    );
   }
 
-  async getNodes(): Promise<IUnifiedResponse<any>> {
+  async getNodes() {
     const response = await this.api.post<IUserStatusResponse>(
       "monitoring/userStatusV2"
     );
-    return this.toUnifiedResponse<IUserStatusResponse>(response);
+    return response;
   }
 
-  async getUser(): Promise<IUnifiedResponse<IUser>> {
+  async getUser() {
     const response = await this.api.get<IUser>("/user");
-    return this.toUnifiedResponse<IUser>(response);
+    return response;
   }
 
-  async getWallets(): Promise<IUnifiedResponse<IWallet[]>> {
+  async getWallets() {
     const response = await this.api.get<IWallet[]>("/wallet");
-    return this.toUnifiedResponse<IWallet[]>(response);
+    return response;
   }
 
-  async deleteUser(): Promise<IUnifiedResponse<any>> {
+  async deleteUser() {
     const response = await this.api.delete<any>("/user/safe");
-    return this.toUnifiedResponse<any>(response);
+    return response;
   }
 
-  async addUserGuardian(data: {
-    name: string;
-  }): Promise<IUnifiedResponse<Omit<IReplaceGuardianResponse, "state">>> {
+  async addUserGuardian(data: { name: string }) {
     const response = await this.api.post<
       Omit<IReplaceGuardianResponse, "state">
     >("user/guardian/add", data);
-    return this.toUnifiedResponse<Omit<IReplaceGuardianResponse, "state">>(
-      response
-    );
-  }
-
-  async generateGuardianDeeplink(params: any): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<any>("/user/generateLink", { params });
-    return this.toUnifiedResponse<any>(response);
-  }
-
-  async getGridlockGuardians(): Promise<IUnifiedResponse<IGuardian>> {
-    const response = await this.api.get<IGuardian>("/sdk/guardian/gridlock");
-    return this.toUnifiedResponse<IGuardian>(response);
-  }
-
-  async getPartnerGuardian(): Promise<IUnifiedResponse<IGuardian>> {
-    const response = await this.api.get<IGuardian>("/sdk/guardian/partner");
-    return this.toUnifiedResponse<IGuardian>(response);
-  }
-
-  async loginWithKey(
-    user: IUser,
-    privateKeyBuffer: string
-  ): Promise<IUnifiedResponse<AccessAndRefreshTokens>> {
-    try {
-      const { nodeId } = user.ownerGuardian;
-      const nonceResponse = await this.api.post<{ nonce: string }>(
-        "/v1/auth/nonce",
-        { nodeId }
-      );
-
-      if (!nonceResponse.data || !nonceResponse.data.nonce) {
-        return {
-          success: false,
-          error: { message: "Failed to get nonce", code: nonceResponse.status },
-          raw: nonceResponse.data,
-        };
-      }
-      const nonce = nonceResponse.data.nonce;
-
-      const signature = crypto.sign(null, Buffer.from(nonce, "hex"), {
-        key: privateKeyBuffer,
-        format: "der",
-        type: "pkcs8",
-      });
-
-      const loginResponse = await this.api.post<AccessAndRefreshTokens>(
-        "/v1/auth/login",
-        { user, signature: signature.toString("base64") }
-      );
-      if (
-        loginResponse.status &&
-        loginResponse.status >= 200 &&
-        loginResponse.status < 300
-      ) {
-        const newAccessToken = loginResponse.data?.access.token;
-        if (newAccessToken) {
-          this.refreshRequestHandler(newAccessToken);
-        }
-      }
-
-      return this.toUnifiedResponse<AccessAndRefreshTokens>(loginResponse);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      return { success: false, error: { message: errorMessage, code: 500 } };
-    }
+    return response;
   }
 
   async addGuardian({
+    email,
+    password,
     guardian,
     isOwnerGuardian,
-  }: {
-    guardian: IGuardian;
-    isOwnerGuardian: boolean;
-  }): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<any>("/v1/users/addGuardian", {
+  }: IAddGuardianParams): Promise<any> {
+    return this.guardianService.addGuardian({
+      email,
+      password,
       guardian,
       isOwnerGuardian,
     });
-    return this.toUnifiedResponse<any>(response);
-  }
-  async sendToGuardian({
-    nodeId,
-    encryptedMessage,
-    publicKey,
-  }: {
-    nodeId: string;
-    encryptedMessage: string;
-    publicKey: string;
-  }): Promise<IUnifiedResponse<any>> {
-    const response = await this.api.post<any>("/v1/auth/e2e", {
-      nodeId,
-      encryptedMessage,
-      publicKey,
-    });
-    return this.toUnifiedResponse<any>(response);
   }
 
-  private toUnifiedResponse<T>(
-    response: ApisauceInstance["post"] extends (
-      ...args: any[]
-    ) => Promise<infer R>
-      ? R
-      : never
-  ): IUnifiedResponse<T> {
-    if (response.ok) {
-      return { success: true, data: response.data as T };
-    } else {
-      return {
-        success: false,
-        error: {
-          message: response.problem || "Unknown error",
-          code: response.status,
-        },
-        raw: response.data,
-      };
+  async getGridlockGuardians(): Promise<IGuardian | undefined> {
+    const response = await this.api.get<IGuardian>("/sdk/guardian/gridlock");
+    if (response.ok && response.data) {
+      return response.data;
     }
+    return undefined;
+  }
+
+  async createUser(
+    registerData: IRegisterData,
+    password: string
+  ): Promise<IRegisterResponse> {
+    return this.userService.createUser(registerData, password);
   }
 }
 

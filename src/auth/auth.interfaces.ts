@@ -1,4 +1,4 @@
-import { IUser, IRegisterData } from "./user.type";
+import { IUser, IRegisterData } from "../user/user.interfaces.js";
 
 export interface TokenPayload {
   token: string;
@@ -10,7 +10,7 @@ export interface AccessAndRefreshTokens {
   refresh: TokenPayload;
 }
 
-export interface IRegisterResponse {
-  user: IUser;
-  authTokens: AccessAndRefreshTokens;
+export interface UserCredentials {
+  email: string;
+  password: string;
 }

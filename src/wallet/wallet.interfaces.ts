@@ -1,5 +1,5 @@
-import { IGuardian } from "./guardian.type";
-import { IUser } from "./user.type";
+import { IGuardian } from "../guardian/guardian.interfaces.js";
+import { IUser } from "../user/user.interfaces.js";
 
 export interface IWallet {
   userId: string;
