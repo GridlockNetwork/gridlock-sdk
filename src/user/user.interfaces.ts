@@ -1,4 +1,5 @@
-import { IGuardian } from "./Guardians";
+import { IGuardian } from "../guardian/guardian.interfaces.js";
+import { AccessAndRefreshTokens } from "../auth/auth.interfaces.js";
 
 export interface IUser {
   email: string;
@@ -78,8 +79,12 @@ export interface IProtectingInvite {
   profilePhotoUrl?: string;
 }
 
-export interface IRegisterData {
+export interface ICreateUserData {
   email: string;
   name: string;
-  guardians: IGuardian[];
+}
+
+export interface IRegisterResponse {
+  user: IUser;
+  authTokens: AccessAndRefreshTokens;
 }
