@@ -79,7 +79,7 @@ export interface IProtectingInvite {
   profilePhotoUrl?: string;
 }
 
-export interface IRegisterData {
+export interface ICreateUserData {
   email: string;
   name: string;
 }

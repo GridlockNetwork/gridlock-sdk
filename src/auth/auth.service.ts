@@ -5,6 +5,42 @@ import { storage } from "../storage/index.js";
 import { key } from "../key/index.js";
 import crypto from "crypto";
 
+export const validateEmailAndPassword = async ({
+  email,
+  password,
+}: {
+  email: string;
+  password: string;
+}) => {
+  let encryptedKeyObject;
+
+  try {
+    encryptedKeyObject = await storage.loadKey({
+      identifier: email,
+      type: "public",
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`No account found with that email. ${error.message}`);
+    } else {
+      throw new Error("No account found with that email.");
+    }
+  }
+
+  try {
+    await key.decryptKey({
+      encryptedKeyObject,
+      password,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Incorrect password. ${error.message}`);
+    } else {
+      throw new Error("Incorrect password.");
+    }
+  }
+};
+
 class AuthService {
   private api: ApisauceInstance;
   private logger: any;
@@ -16,10 +52,18 @@ class AuthService {
     this.verbose = verb;
   }
 
-  async loginWithToken(email: string): Promise<AccessAndRefreshTokens> {
-    const refreshToken = storage.loadToken({ email, type: "refresh" });
+  async loginWithToken({
+    email,
+    token,
+  }: {
+    email?: string;
+    token?: string;
+  }): Promise<AccessAndRefreshTokens> {
+    const refreshToken =
+      token || (email ? storage.loadToken({ email, type: "refresh" }) : null);
+
     if (!refreshToken) {
-      throw new Error("Refresh token not found.");
+      throw new Error("No refresh token provided.");
     }
 
     const response = await this.api.post<AccessAndRefreshTokens>(
@@ -50,9 +94,6 @@ class AuthService {
   }): Promise<AccessAndRefreshTokens> {
     try {
       const user = storage.loadUser({ email });
-      if (!user) {
-        throw new Error("User not found.");
-      }
 
       const { nodeId } = user.ownerGuardian;
 
@@ -60,9 +101,6 @@ class AuthService {
         identifier: nodeId,
         type: "identity",
       });
-      if (!privateKeyObject) {
-        throw new Error("Owner guardian private key not found.");
-      }
 
       const privateKeyBuffer = await key.decryptKey({
         encryptedKeyObject: privateKeyObject,
@@ -71,9 +109,7 @@ class AuthService {
 
       const nonceResponse = await this.api.post<{ nonce: string }>(
         "/v1/auth/nonce",
-        {
-          nodeId,
-        }
+        { nodeId }
       );
 
       if (!nonceResponse.data || !nonceResponse.data.nonce) {
@@ -120,7 +156,7 @@ class AuthService {
     password,
   }: UserCredentials): Promise<AccessAndRefreshTokens> {
     try {
-      let authTokens = await this.loginWithToken(email);
+      let authTokens = await this.loginWithToken({ email });
       if (!authTokens) {
         authTokens = await this.loginWithKey({ email, password });
       }

@@ -1,5 +1,5 @@
 import { storage } from "../storage/index.js";
-import AuthService from "../auth/auth.service.js";
+import AuthService, { validateEmailAndPassword } from "../auth/auth.service.js";
 import type { IGuardian } from "./guardian.interfaces.js";
 import { ApisauceInstance } from "apisauce";
 
@@ -32,10 +32,15 @@ export class GuardianService {
     guardian: IGuardian;
     isOwnerGuardian: boolean;
   }) {
-    const authTokens = await this.authService.login({ email, password });
-    if (!authTokens) {
-      return;
+    await validateEmailAndPassword({ email, password });
+
+    const user = storage.loadUser({ email });
+    if (user?.ownerGuardian && isOwnerGuardian) {
+      throw new Error("There can only be one owner guardian per user");
     }
+
+    await this.authService.login({ email, password });
+
     const response = await this.api.post<any>("/v1/users/addGuardian", {
       guardian,
       isOwnerGuardian,
@@ -43,9 +48,12 @@ export class GuardianService {
     if (response.ok && response.data) {
       storage.saveUser({ user: response.data });
       storage.saveGuardian({ guardian });
+      return response.data;
     }
 
-    return response;
+    const errorData = response.data as { message?: string } | undefined;
+    const message = errorData?.message || response.problem || "Unknown error";
+    throw new Error(message);
   }
 }
 

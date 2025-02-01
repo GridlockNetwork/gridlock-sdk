@@ -1,7 +1,7 @@
 import { ApisauceInstance } from "apisauce";
 import { storage } from "../storage/index.js";
 import { key } from "../key/index.js";
-import { IRegisterData, IRegisterResponse } from "./user.interfaces.js";
+import { ICreateUserData, IRegisterResponse } from "./user.interfaces.js";
 
 export class UserService {
   private api: ApisauceInstance;
@@ -14,14 +14,20 @@ export class UserService {
     this.verbose = verbose;
   }
 
-  async createUser(
-    registerData: IRegisterData,
-    password: string
-  ): Promise<IRegisterResponse> {
+  async createUser({
+    name,
+    email,
+    password,
+  }: {
+    name: string;
+    email: string;
+    password: string;
+  }): Promise<IRegisterResponse> {
     const response = await this.api.post<IRegisterResponse>(
       "/v1/auth/register",
-      registerData
+      { name, email }
     );
+
     if (response.ok && response.data) {
       const { user, authTokens } = response.data;
       storage.saveTokens({ authTokens, email: user.email });
@@ -29,11 +35,9 @@ export class UserService {
       await key.generateUserKeys(user.email, password);
       return response.data;
     }
-    this.logger.log("Failed to create user.");
-    if (this.verbose) {
-      ///this is not working need to figure out verbose
-      this.logger.log("Response details:", response);
-    }
-    throw new Error("Failed to create user");
+
+    const errorData = response.data as { message?: string } | undefined;
+    const message = errorData?.message || response.problem || "Unknown error";
+    throw new Error(message);
   }
 }

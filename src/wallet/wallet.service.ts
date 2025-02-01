@@ -1,5 +1,5 @@
 import { ApisauceInstance } from "apisauce";
-import AuthService from "../auth/auth.service.js";
+import AuthService, { validateEmailAndPassword } from "../auth/auth.service.js";
 import { storage } from "../storage/index.js";
 import { generatePasswordBundle } from "../key/key.js";
 import { IWallet } from "./wallet.interfaces.js";
@@ -33,6 +33,8 @@ class WalletService {
   }
 
   async createWallet(email: string, password: string, blockchain: string) {
+    await validateEmailAndPassword({ email, password });
+
     const user = storage.loadUser({ email });
     if (!user) {
       throw new Error("User not found");
@@ -56,64 +58,96 @@ class WalletService {
       "/v1/wallets",
       createWalletData
     );
-
     if (response.ok && response.data) {
       storage.saveWallet({ wallet: response.data });
+      return response.data;
     }
 
-    return response;
+    const errorData = response.data as { message?: string } | undefined;
+    const message = errorData?.message || response.problem || "Unknown error";
+    throw new Error(message);
   }
 
-  async sign(signTransactionData: any) {
+  async signTransaction({
+    email,
+    password,
+    address,
+    message,
+  }: {
+    email: string;
+    password: string;
+    address: string;
+    message: string;
+  }) {
+    await validateEmailAndPassword({ email, password });
+
+    const user = storage.loadUser({ email });
+
+    const wallet = storage.loadWallet({ address });
+
+    const signTransactionData = {
+      user,
+      wallet,
+      message,
+    };
+
+    await this.authService.login({ email, password });
+
     const response = await this.api.post<any>(
       "/v1/wallets/sign",
       signTransactionData
     );
-    return response;
-  }
 
-  async verifySignature(
-    coinType: string,
-    message: string,
-    signature: string,
-    expectedAddress: string
-  ) {
-    if (!SUPPORTED_COINS.includes(coinType)) {
-      return { success: false, error: { message: "Invalid coin type" } };
+    if (response.ok && response.data) {
+      return response.data;
     }
 
-    try {
-      if (coinType === ETHEREUM) {
-        const messageHash = hashMessage(message);
-        const recoveredAddress = recoverAddress(messageHash, signature);
-        const isValid =
-          recoveredAddress?.toLowerCase() === expectedAddress?.toLowerCase();
-        return { success: true, data: isValid };
-      }
-
-      if (coinType === SOLANA) {
-        const messageBytes = decodeUTF8(message);
-        const signatureBytes = bs58.decode(signature);
-        const addressBytes = bs58.decode(expectedAddress);
-        const isVerified = nacl.sign.detached.verify(
-          messageBytes,
-          signatureBytes,
-          addressBytes
-        );
-        return { success: true, data: isVerified };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: { message: "Error trying to check signature" },
-      };
-    }
-
-    return { success: false, error: { message: "Unsupported coin type" } };
+    const errorData = response.data as { message?: string } | undefined;
+    const errorMsg = errorData?.message || response.problem || "Unknown error";
+    throw new Error(errorMsg);
   }
 
-  private async loginWithToken(token: string) {
-    // Implement the loginWithToken method here
+  async verifySignature({
+    email,
+    password,
+    message,
+    address,
+    blockchain,
+    signature,
+  }: {
+    email: string;
+    password: string;
+    message: string;
+    address: string;
+    blockchain: string;
+    signature: string;
+  }) {
+    if (!SUPPORTED_COINS.includes(blockchain)) {
+      return { success: false, error: { message: "Unsupported blockchain" } };
+    }
+    await validateEmailAndPassword({ email, password });
+
+    await this.authService.login({ email, password });
+
+    const verifySignatureData = {
+      message,
+      address,
+      blockchain,
+      signature,
+    };
+
+    const response = await this.api.post<any>(
+      "/v1/wallets/verify",
+      verifySignatureData
+    );
+
+    if (response.ok && response.data) {
+      return response.data;
+    }
+
+    const errorData = response.data as { message?: string } | undefined;
+    const errorMsg = errorData?.message || response.problem || "Unknown error";
+    throw new Error(errorMsg);
   }
 }
 

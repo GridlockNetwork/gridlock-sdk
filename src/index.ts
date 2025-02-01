@@ -4,21 +4,19 @@ import { GuardianService } from "./guardian/guardian.service.js";
 import { WalletService } from "./wallet/wallet.service.js";
 import { AuthService } from "./auth/index.js";
 import { v4 as uuidv4 } from "uuid";
-import crypto from "crypto";
-import { hashMessage, recoverAddress } from "ethers";
+import chalk from "chalk";
 import {
   IUser,
-  IRegisterData,
+  ICreateUserData,
   IRegisterResponse,
 } from "./user/user.interfaces.js";
-import { AccessAndRefreshTokens } from "./auth/auth.interfaces.js";
 import moment from "moment";
 import {
   IReplaceGuardianResponse,
   IUserStatusResponse,
   IGuardian,
 } from "./guardian/guardian.interfaces.js";
-import { IWallet, ICreateWalletParams } from "./wallet/wallet.interfaces.js";
+import { IWallet } from "./wallet/wallet.interfaces.js";
 import { IAddGuardianParams } from "./guardian/guardian.interfaces.js";
 
 export const ETHEREUM = "ethereum";
@@ -39,6 +37,7 @@ class GridlockSdk {
   private logger: any;
   private accessToken: string = "";
   private retriedRequest: boolean = false; // flag to track if a request has been retried
+  private debug: boolean;
 
   api: ApisauceInstance;
 
@@ -52,6 +51,7 @@ class GridlockSdk {
     this.baseUrl = props.baseUrl;
     this.verbose = props.verbose;
     this.logger = props.logger || console;
+    this.debug = props.verbose;
 
     this.api = create({
       baseURL: this.baseUrl,
@@ -85,15 +85,21 @@ class GridlockSdk {
     this.verbose = verbose;
   }
 
-  private generateNodeId() {
-    return uuidv4();
-  }
-
   private log = (...args: any[]) => {
     if (!this.logger || !this.verbose) return;
 
     this.logger.log("\n");
     this.logger.log(...args);
+  };
+
+  private logError = (error: any) => {
+    this.logger.log("");
+    if (this.logger) {
+      this.logger.error(chalk.red.bold(error.message)); // Make error message stand out
+      if (this.verbose) {
+        this.logger.error(chalk.gray(error.stack)); // Dim stack trace for readability
+      }
+    }
   };
 
   private addInterceptors = () => {
@@ -129,9 +135,9 @@ class GridlockSdk {
           if (!this.retriedRequest) {
             this.log("Token expired, trying to refresh it");
             const token = this.accessToken;
-            const refreshResponse = await this.authService.loginWithToken(
-              token
-            );
+            const refreshResponse = await this.authService.loginWithToken({
+              token,
+            });
 
             if (refreshResponse) {
               // retry the original request with the new token
@@ -150,8 +156,6 @@ class GridlockSdk {
   };
 
   refreshRequestHandler(token: string) {
-    // console.log('Old Auth Token:', this.accessToken); //debug //this doesn't persist across cli commands. It's always undefined. i think it's because the sdk is reinitialized every time
-    // console.log('New Token:', token); //debug
     this.accessToken = token;
     this.api = create({
       baseURL: this.baseUrl,
@@ -163,54 +167,121 @@ class GridlockSdk {
   }
 
   async createWallet(email: string, password: string, blockchain: string) {
-    return this.walletService.createWallet(email, password, blockchain);
+    try {
+      return await this.walletService.createWallet(email, password, blockchain);
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
   }
 
-  async sign(signTransactionData: any) {
-    return this.walletService.sign(signTransactionData);
+  async signTransaction({
+    email,
+    password,
+    address,
+    message,
+  }: {
+    email: string;
+    password: string;
+    address: string;
+    message: string;
+  }) {
+    try {
+      const xxx = await this.walletService.signTransaction({
+        email,
+        password,
+        address,
+        message,
+      });
+      return xxx;
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
   }
 
-  async verifySignature(
-    coinType: string,
-    message: string,
-    signature: string,
-    expectedAddress: string
-  ) {
-    return this.walletService.verifySignature(
-      coinType,
-      message,
-      signature,
-      expectedAddress
-    );
+  async verifySignature({
+    email,
+    password,
+    message,
+    address,
+    blockchain,
+    signature,
+  }: {
+    email: string;
+    password: string;
+    message: string;
+    address: string;
+    blockchain: string;
+    signature: string;
+  }) {
+    try {
+      return await this.walletService.verifySignature({
+        email,
+        password,
+        message,
+        address,
+        blockchain,
+        signature,
+      });
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
   }
 
   async getNodes() {
-    const response = await this.api.post<IUserStatusResponse>(
-      "monitoring/userStatusV2"
-    );
-    return response;
+    try {
+      const response = await this.api.post<IUserStatusResponse>(
+        "monitoring/userStatusV2"
+      );
+      return response;
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
   }
 
   async getUser() {
-    const response = await this.api.get<IUser>("/user");
-    return response;
+    try {
+      const response = await this.api.get<IUser>("/user");
+      return response;
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
   }
 
   async getWallets() {
-    const response = await this.api.get<IWallet[]>("/wallet");
-    return response;
+    try {
+      const response = await this.api.get<IWallet[]>("/wallet");
+      return response;
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
   }
 
   async deleteUser() {
-    const response = await this.api.delete<any>("/user/safe");
-    return response;
+    try {
+      const response = await this.api.delete<any>("/user/safe");
+      return response;
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
   }
 
   async addUserGuardian(data: { name: string }) {
-    const response = await this.api.post<
-      Omit<IReplaceGuardianResponse, "state">
-    >("user/guardian/add", data);
-    return response;
+    try {
+      const response = await this.api.post<
+        Omit<IReplaceGuardianResponse, "state">
+      >("user/guardian/add", data);
+      return response;
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
   }
 
   async addGuardian({
@@ -219,27 +290,47 @@ class GridlockSdk {
     guardian,
     isOwnerGuardian,
   }: IAddGuardianParams): Promise<any> {
-    return this.guardianService.addGuardian({
-      email,
-      password,
-      guardian,
-      isOwnerGuardian,
-    });
+    try {
+      return await this.guardianService.addGuardian({
+        email,
+        password,
+        guardian,
+        isOwnerGuardian,
+      });
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
   }
 
   async getGridlockGuardians(): Promise<IGuardian | undefined> {
-    const response = await this.api.get<IGuardian>("/sdk/guardian/gridlock");
-    if (response.ok && response.data) {
-      return response.data;
+    try {
+      const response = await this.api.get<IGuardian>("/sdk/guardian/gridlock");
+      if (response.ok && response.data) {
+        return response.data;
+      }
+      return undefined;
+    } catch (error) {
+      this.logError(error);
+      throw error;
     }
-    return undefined;
   }
 
-  async createUser(
-    registerData: IRegisterData,
-    password: string
-  ): Promise<IRegisterResponse> {
-    return this.userService.createUser(registerData, password);
+  async createUser({
+    name,
+    email,
+    password,
+  }: {
+    name: string;
+    email: string;
+    password: string;
+  }): Promise<IRegisterResponse> {
+    try {
+      return await this.userService.createUser({ name, email, password });
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
   }
 }
 

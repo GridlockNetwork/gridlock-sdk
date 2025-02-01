@@ -1,4 +1,4 @@
-import { IUser, IRegisterData } from "../user/user.interfaces.js";
+import { IUser, ICreateUserData } from "../user/user.interfaces.js";
 
 export interface TokenPayload {
   token: string;

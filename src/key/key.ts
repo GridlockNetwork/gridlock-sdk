@@ -97,13 +97,10 @@ export async function decryptKey({
     return decryptedKey;
   } catch (error) {
     if (error instanceof Error) {
-      console.error("Failed to decrypt key:", error.message);
+      throw new Error(`Error decrypting key: ${error.message}`);
     } else {
-      console.error("Failed to decrypt key:", error);
+      throw new Error("An unknown error occurred");
     }
-    throw new Error(
-      "Decryption failed. Please check your password and try again."
-    );
   }
 }
 

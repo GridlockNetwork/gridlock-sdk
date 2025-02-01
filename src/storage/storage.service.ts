@@ -28,16 +28,10 @@ function saveData<T>({
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n");
 }
 
-function loadData<T>({
-  dir,
-  filename,
-}: {
-  dir: string;
-  filename: string;
-}): T | null {
+function loadData<T>({ dir, filename }: { dir: string; filename: string }): T {
   const filePath = path.join(dir, filename);
   if (!fs.existsSync(filePath)) {
-    return null;
+    throw new Error(`File not found: ${filePath}`);
   }
   return JSON.parse(fs.readFileSync(filePath, "utf-8"));
 }
@@ -101,7 +95,6 @@ export function loadKey({
     dir: KEYS_DIR,
     filename: `${identifier}.${type}.key.json`,
   });
-  if (!keyObject) return null;
   const { checksum, ...keyData } = keyObject;
   const calculatedChecksum = crypto
     .createHash("sha256")
@@ -133,7 +126,7 @@ export function loadGuardians(): IGuardian[] {
     .filter((guardian): guardian is IGuardian => guardian !== null);
 }
 
-export function loadGuardian({ nodeId }: { nodeId: string }): IGuardian | null {
+export function loadGuardian({ nodeId }: { nodeId: string }): IGuardian {
   return loadData<IGuardian>({
     dir: GUARDIANS_DIR,
     filename: `${nodeId}.guardian.json`,
@@ -144,7 +137,7 @@ export function saveUser({ user }: { user: IUser }) {
   saveData({ dir: USERS_DIR, filename: `${user.email}.user.json`, data: user });
 }
 
-export function loadUser({ email }: { email: string }): IUser | null {
+export function loadUser({ email }: { email: string }): IUser {
   return loadData<IUser>({ dir: USERS_DIR, filename: `${email}.user.json` });
 }
 
