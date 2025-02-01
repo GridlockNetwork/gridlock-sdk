@@ -1,22 +1,10 @@
-import { ApisauceInstance, create } from "apisauce";
+// index.ts
+import { createApiInstance, GridlockApi } from "./api.js";
 import { UserService } from "./user/user.service.js";
 import { GuardianService } from "./guardian/guardian.service.js";
 import { WalletService } from "./wallet/wallet.service.js";
 import { AuthService } from "./auth/index.js";
-import { v4 as uuidv4 } from "uuid";
-import chalk from "chalk";
-import {
-  IUser,
-  ICreateUserData,
-  IRegisterResponse,
-} from "./user/user.interfaces.js";
-import moment from "moment";
-import {
-  IReplaceGuardianResponse,
-  IUserStatusResponse,
-  IGuardian,
-} from "./guardian/guardian.interfaces.js";
-import { IWallet } from "./wallet/wallet.interfaces.js";
+import { IRegisterResponse } from "./user/user.interfaces.js";
 import { IAddGuardianParams } from "./guardian/guardian.interfaces.js";
 
 export const ETHEREUM = "ethereum";
@@ -33,14 +21,8 @@ interface IGridlockSdkProps {
 class GridlockSdk {
   private apiKey: string;
   private baseUrl: string;
-  private verbose: boolean;
   private logger: any;
-  private accessToken: string = "";
-  private retriedRequest: boolean = false; // flag to track if a request has been retried
-  private debug: boolean;
-
-  api: ApisauceInstance;
-
+  api: GridlockApi;
   authService: AuthService;
   userService: UserService;
   guardianService: GuardianService;
@@ -49,121 +31,32 @@ class GridlockSdk {
   constructor(props: IGridlockSdkProps) {
     this.apiKey = props.apiKey;
     this.baseUrl = props.baseUrl;
-    this.verbose = props.verbose;
     this.logger = props.logger || console;
-    this.debug = props.verbose;
 
-    this.api = create({
-      baseURL: this.baseUrl,
-      headers: {
-        Authorization: "Bearer undefined",
-      },
-      withCredentials: true,
-      timeout: 60000,
-    });
+    this.api = createApiInstance(this.baseUrl, this.logger, props.verbose);
 
-    this.authService = new AuthService(this.api, props.logger, props.verbose);
-
-    this.userService = new UserService(this.api, this.logger, this.verbose);
+    this.authService = new AuthService(this.api, this.logger, props.verbose);
+    this.userService = new UserService(this.api, this.logger, props.verbose);
     this.walletService = new WalletService(
       this.api,
       this.authService,
       this.logger,
-      this.verbose
+      props.verbose
     );
     this.guardianService = new GuardianService(
       this.api,
       this.authService,
-      props.logger,
+      this.logger,
       props.verbose
     );
-
-    this.addInterceptors();
   }
 
   setVerbose(verbose: boolean) {
-    this.verbose = verbose;
+    this.api.setVerbose(verbose);
   }
 
-  private log = (...args: any[]) => {
-    if (!this.logger || !this.verbose) return;
-
-    this.logger.log("\n");
-    this.logger.log(...args);
-  };
-
-  private logError = (error: any) => {
-    this.logger.log("");
-    if (this.logger) {
-      this.logger.error(chalk.red.bold(error.message)); // Make error message stand out
-      if (this.verbose) {
-        this.logger.error(chalk.gray(error.stack)); // Dim stack trace for readability
-      }
-    }
-  };
-
-  private addInterceptors = () => {
-    this.api.axiosInstance.interceptors.request.use((request) => {
-      this.log(
-        `<- ${moment().format("HH:mm:ss")}: ${request.method?.toUpperCase()}: ${
-          request.url
-        } `
-      );
-      return request;
-    });
-
-    this.api.axiosInstance.interceptors.response.use(
-      (response) => {
-        this.log(
-          `-> :${moment().format(
-            "HH:mm:ss"
-          )}: ${response.config.method?.toUpperCase()}: ${
-            response.config.url
-          } -- ${response.status}`
-        );
-        return response;
-      },
-      async (error) => {
-        this.log(
-          `ERROR-> ${moment().format(
-            "HH:mm:ss"
-          )}: ${error.config.method?.toUpperCase()}: ${error.config.url} -- ${
-            error?.response?.status
-          }`
-        );
-        if (error?.response?.status === 401) {
-          if (!this.retriedRequest) {
-            this.log("Token expired, trying to refresh it");
-            const token = this.accessToken;
-            const refreshResponse = await this.authService.loginWithToken({
-              token,
-            });
-
-            if (refreshResponse) {
-              // retry the original request with the new token
-              error.config.headers[
-                "Authorization"
-              ] = `Bearer ${this.accessToken}`;
-              this.retriedRequest = true;
-              return this.api.axiosInstance.request(error.config);
-            }
-          }
-        }
-        this.retriedRequest = false;
-        return Promise.reject(error);
-      }
-    );
-  };
-
   refreshRequestHandler(token: string) {
-    this.accessToken = token;
-    this.api = create({
-      baseURL: this.baseUrl,
-      headers: {
-        Authorization: `Bearer ${token || "undefined"}`,
-      },
-    });
-    this.addInterceptors();
+    this.api.refreshRequestHandler(token);
   }
 
   async createUser({
@@ -178,7 +71,7 @@ class GridlockSdk {
     try {
       return await this.userService.createUser({ name, email, password });
     } catch (error) {
-      this.logError(error);
+      this.api.logError(error);
       throw error;
     }
   }
@@ -197,7 +90,7 @@ class GridlockSdk {
         isOwnerGuardian,
       });
     } catch (error) {
-      this.logError(error);
+      this.api.logError(error);
       throw error;
     }
   }
@@ -206,7 +99,7 @@ class GridlockSdk {
     try {
       return await this.walletService.createWallet(email, password, blockchain);
     } catch (error) {
-      this.logError(error);
+      this.api.logError(error);
       throw error;
     }
   }
@@ -223,15 +116,14 @@ class GridlockSdk {
     message: string;
   }) {
     try {
-      const xxx = await this.walletService.signTransaction({
+      return await this.walletService.signTransaction({
         email,
         password,
         address,
         message,
       });
-      return xxx;
     } catch (error) {
-      this.logError(error);
+      this.api.logError(error);
       throw error;
     }
   }
@@ -261,20 +153,20 @@ class GridlockSdk {
         signature,
       });
     } catch (error) {
-      this.logError(error);
+      this.api.logError(error);
       throw error;
     }
   }
 
-  async getGridlockGuardians(): Promise<IGuardian | undefined> {
+  async getGridlockGuardians() {
     try {
-      const response = await this.api.get<IGuardian>("/sdk/guardian/gridlock");
+      const response = await this.api.get("/sdk/guardian/gridlock");
       if (response.ok && response.data) {
         return response.data;
       }
       return undefined;
     } catch (error) {
-      this.logError(error);
+      this.api.logError(error);
       throw error;
     }
   }

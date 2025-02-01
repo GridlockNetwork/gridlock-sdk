@@ -66,10 +66,28 @@ class AuthService {
       throw new Error("No refresh token provided.");
     }
 
+    // Log the refresh token for troubleshooting
+    if (this.verbose && this.logger) {
+      this.logger.log(`Using refresh token: ${refreshToken}`);
+    }
+
+    // Temporarily remove the Authorization header
+    const originalAuthHeader =
+      this.api.axiosInstance.defaults.headers.common["Authorization"];
+    this.api.setHeader("Authorization", "");
+
     const response = await this.api.post<AccessAndRefreshTokens>(
       "/v1/auth/refresh-tokens",
       { refreshToken }
     );
+
+    // Restore the header after the refresh call
+    if (originalAuthHeader) {
+      if (typeof originalAuthHeader === "string") {
+        this.api.setHeader("Authorization", originalAuthHeader);
+      }
+    }
+
     if (response.status && response.status >= 200 && response.status < 300) {
       const newAccessToken = response.data?.access.token;
       if (newAccessToken) {
