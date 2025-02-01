@@ -166,6 +166,42 @@ class GridlockSdk {
     this.addInterceptors();
   }
 
+  async createUser({
+    name,
+    email,
+    password,
+  }: {
+    name: string;
+    email: string;
+    password: string;
+  }): Promise<IRegisterResponse> {
+    try {
+      return await this.userService.createUser({ name, email, password });
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
+  }
+
+  async addGuardian({
+    email,
+    password,
+    guardian,
+    isOwnerGuardian,
+  }: IAddGuardianParams): Promise<any> {
+    try {
+      return await this.guardianService.addGuardian({
+        email,
+        password,
+        guardian,
+        isOwnerGuardian,
+      });
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
+  }
+
   async createWallet(email: string, password: string, blockchain: string) {
     try {
       return await this.walletService.createWallet(email, password, blockchain);
@@ -230,79 +266,6 @@ class GridlockSdk {
     }
   }
 
-  async getNodes() {
-    try {
-      const response = await this.api.post<IUserStatusResponse>(
-        "monitoring/userStatusV2"
-      );
-      return response;
-    } catch (error) {
-      this.logError(error);
-      throw error;
-    }
-  }
-
-  async getUser() {
-    try {
-      const response = await this.api.get<IUser>("/user");
-      return response;
-    } catch (error) {
-      this.logError(error);
-      throw error;
-    }
-  }
-
-  async getWallets() {
-    try {
-      const response = await this.api.get<IWallet[]>("/wallet");
-      return response;
-    } catch (error) {
-      this.logError(error);
-      throw error;
-    }
-  }
-
-  async deleteUser() {
-    try {
-      const response = await this.api.delete<any>("/user/safe");
-      return response;
-    } catch (error) {
-      this.logError(error);
-      throw error;
-    }
-  }
-
-  async addUserGuardian(data: { name: string }) {
-    try {
-      const response = await this.api.post<
-        Omit<IReplaceGuardianResponse, "state">
-      >("user/guardian/add", data);
-      return response;
-    } catch (error) {
-      this.logError(error);
-      throw error;
-    }
-  }
-
-  async addGuardian({
-    email,
-    password,
-    guardian,
-    isOwnerGuardian,
-  }: IAddGuardianParams): Promise<any> {
-    try {
-      return await this.guardianService.addGuardian({
-        email,
-        password,
-        guardian,
-        isOwnerGuardian,
-      });
-    } catch (error) {
-      this.logError(error);
-      throw error;
-    }
-  }
-
   async getGridlockGuardians(): Promise<IGuardian | undefined> {
     try {
       const response = await this.api.get<IGuardian>("/sdk/guardian/gridlock");
@@ -310,23 +273,6 @@ class GridlockSdk {
         return response.data;
       }
       return undefined;
-    } catch (error) {
-      this.logError(error);
-      throw error;
-    }
-  }
-
-  async createUser({
-    name,
-    email,
-    password,
-  }: {
-    name: string;
-    email: string;
-    password: string;
-  }): Promise<IRegisterResponse> {
-    try {
-      return await this.userService.createUser({ name, email, password });
     } catch (error) {
       this.logError(error);
       throw error;
