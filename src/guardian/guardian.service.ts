@@ -3,97 +3,61 @@ import AuthService, { validateEmailAndPassword } from "../auth/auth.service.js";
 import type { IGuardian } from "./guardian.interfaces.js";
 import { ApisauceInstance } from "apisauce";
 
-export class GuardianService {
-  private api: ApisauceInstance;
-  private authService: AuthService;
-  private logger: any;
-  private verbose: boolean;
+export async function addGuardian(
+  api: ApisauceInstance,
+  authService: AuthService,
+  email: string,
+  password: string,
+  guardian: IGuardian,
+  isOwnerGuardian: boolean
+) {
+  await validateEmailAndPassword({ email, password });
 
-  constructor(
-    api: ApisauceInstance,
-    authService: AuthService,
-    logger: any,
-    verbose: boolean
-  ) {
-    this.api = api;
-    this.authService = authService;
-    this.logger = logger;
-    this.verbose = verbose;
+  const user = storage.loadUser({ email });
+  if (user?.ownerGuardianId && isOwnerGuardian) {
+    throw new Error("There can only be one owner guardian per user");
   }
 
-  async addGuardian({
-    email,
-    password,
+  await authService.login({ email, password });
+
+  const response = await api.post<any>("/v1/users/addGuardian/custom", {
     guardian,
     isOwnerGuardian,
-  }: {
-    email: string;
-    password: string;
-    guardian: IGuardian;
-    isOwnerGuardian: boolean;
-  }) {
-    await validateEmailAndPassword({ email, password });
-
-    const user = storage.loadUser({ email });
-    if (user?.ownerGuardian && isOwnerGuardian) {
-      throw new Error("There can only be one owner guardian per user");
-    }
-
-    await this.authService.login({ email, password });
-
-    const response = await this.api.post<any>("/v1/users/addGuardian", {
-      guardian,
-      isOwnerGuardian,
-    });
-    if (response.ok && response.data) {
-      storage.saveUser({ user: response.data });
-      storage.saveGuardian({ guardian });
-      return response.data;
-    }
-
+  });
+  if (response.ok && response.data) {
+    storage.saveUser({ user: response.data });
+    storage.saveGuardian({ guardian });
+    return response.data;
+  } else {
     const errorData = response.data as { message?: string } | undefined;
     const message = errorData?.message || response.problem || "Unknown error";
     throw new Error(message);
   }
 }
 
-// export async function getGridlockGuardians(): Promise<IGuardian[] | null> {
-//   const spinner = ora("Retrieving Gridlock guardians...").start();
-//   const response = await gridlock.getGridlockGuardians();
-//   if (!response.success) {
-//     spinner.fail("Failed to retrieve Gridlock guardians");
-//     console.error(
-//       `Error: ${response.error.message} (Code: ${response.error.code})`
-//     );
-//     return null;
-//   }
-//   const guardians = Array.isArray(response.data)
-//     ? (response.data as IGuardian[])
-//     : [];
-//   spinner.succeed("Gridlock guardians retrieved successfully");
-//   return guardians;
-// }
+export async function addGridlockGuardian(
+  api: ApisauceInstance,
+  authService: AuthService,
+  email: string,
+  password: string
+): Promise<IGuardian | null> {
+  await validateEmailAndPassword({ email, password });
 
-// export async function addGridlockGuardian() {
-//   const spinner = ora("Retrieving Gridlock guardian...").start();
-//   const gridlockGuardians = await getGridlockGuardians();
-//   if (!gridlockGuardians) {
-//     spinner.fail("Failed to retrieve Gridlock guardians");
-//     return;
-//   }
+  const user = storage.loadUser({ email });
 
-//   const existingGuardians = storage.loadGuardians();
-//   const existingGuardianIds = existingGuardians.map((g) => g.nodeId);
+  await authService.login({ email, password });
 
-//   const newGuardian = Array.isArray(gridlockGuardians)
-//     ? gridlockGuardians.find((g) => !existingGuardianIds.includes(g.nodeId))
-//     : null;
-//   if (!newGuardian) {
-//     spinner.fail("No new Gridlock guardian available to add");
-//     return;
-//   }
-
-//   storage.saveGuardian({ guardian: newGuardian });
-//   spinner.succeed("Gridlock guardian retrieved and saved successfully");
-//   await showAvailableGuardians();
-// }
+  const response = await api.post<any>("/v1/users/addGuardian/gridlock", {
+    email,
+  });
+  if (response.ok && response.data) {
+    const { user, guardian } = response.data;
+    storage.saveUser({ user });
+    storage.saveGuardian({ guardian });
+    return guardian;
+  } else {
+    const errorData = response.data as { message?: string } | undefined;
+    const message = errorData?.message || response.problem || "Unknown error";
+    throw new Error(message);
+  }
+}

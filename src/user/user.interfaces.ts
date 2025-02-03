@@ -6,7 +6,7 @@ export interface IUser {
   name?: string;
   role: string;
   isEmailVerified: boolean;
-  ownerGuardian: IGuardian;
+  ownerGuardianId: string;
   nodePool: IGuardian[];
 }
 

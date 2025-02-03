@@ -14,141 +14,112 @@ const ETHEREUM = "ethereum";
 const SOLANA = "solana";
 const SUPPORTED_COINS = [ETHEREUM, SOLANA];
 
-class WalletService {
-  private api: ApisauceInstance;
-  private authService: AuthService;
-  private logger: any;
-  private verbose: boolean;
+export async function createWallet(
+  api: ApisauceInstance,
+  authService: AuthService,
+  email: string,
+  password: string,
+  blockchain: string
+) {
+  await validateEmailAndPassword({ email, password });
 
-  constructor(
-    api: ApisauceInstance,
-    authService: AuthService,
-    logger: any,
-    verbose: boolean
-  ) {
-    this.api = api;
-    this.authService = authService;
-    this.logger = logger;
-    this.verbose = verbose;
+  const user = storage.loadUser({ email });
+  if (!user) {
+    throw new Error("User not found");
   }
 
-  async createWallet(email: string, password: string, blockchain: string) {
-    await validateEmailAndPassword({ email, password });
+  const authTokens = await authService.login({ email, password });
 
-    const user = storage.loadUser({ email });
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    const authTokens = await this.authService.login({ email, password });
-
-    if (!authTokens) {
-      return;
-    }
-
-    const passwordBundle = await generatePasswordBundle({ user, password });
-
-    const createWalletData = {
-      user,
-      blockchain,
-      passwordBundle,
-    };
-
-    const response = await this.api.post<IWallet>(
-      "/v1/wallets",
-      createWalletData
-    );
-    if (response.ok && response.data) {
-      storage.saveWallet({ wallet: response.data });
-      return response.data;
-    }
-
-    const errorData = response.data as { message?: string } | undefined;
-    const message = errorData?.message || response.problem || "Unknown error";
-    throw new Error(message);
+  if (!authTokens) {
+    return;
   }
 
-  async signTransaction({
-    email,
-    password,
-    address,
+  const passwordBundle = await generatePasswordBundle({ user, password });
+
+  const createWalletData = {
+    user,
+    blockchain,
+    passwordBundle,
+  };
+
+  const response = await api.post<IWallet>("/v1/wallets", createWalletData);
+  if (response.ok && response.data) {
+    storage.saveWallet({ wallet: response.data });
+    return response.data;
+  }
+
+  const errorData = response.data as { message?: string } | undefined;
+  const message = errorData?.message || response.problem || "Unknown error";
+  throw new Error(message);
+}
+
+export async function signTransaction(
+  api: ApisauceInstance,
+  authService: AuthService,
+  email: string,
+  password: string,
+  address: string,
+  message: string
+) {
+  await validateEmailAndPassword({ email, password });
+
+  const user = storage.loadUser({ email });
+
+  const wallet = storage.loadWallet({ address });
+
+  const signTransactionData = {
+    user,
+    wallet,
     message,
-  }: {
-    email: string;
-    password: string;
-    address: string;
-    message: string;
-  }) {
-    await validateEmailAndPassword({ email, password });
+  };
 
-    const user = storage.loadUser({ email });
+  await authService.login({ email, password });
 
-    const wallet = storage.loadWallet({ address });
+  const response = await api.post<any>("/v1/wallets/sign", signTransactionData);
 
-    const signTransactionData = {
-      user,
-      wallet,
-      message,
-    };
-
-    await this.authService.login({ email, password });
-
-    const response = await this.api.post<any>(
-      "/v1/wallets/sign",
-      signTransactionData
-    );
-
-    if (response.ok && response.data) {
-      return response.data;
-    }
-
-    const errorData = response.data as { message?: string } | undefined;
-    const errorMsg = errorData?.message || response.problem || "Unknown error";
-    throw new Error(errorMsg);
+  if (response.ok && response.data) {
+    return response.data;
   }
 
-  async verifySignature({
-    email,
-    password,
+  const errorData = response.data as { message?: string } | undefined;
+  const errorMsg = errorData?.message || response.problem || "Unknown error";
+  throw new Error(errorMsg);
+}
+
+export async function verifySignature(
+  api: ApisauceInstance,
+  authService: AuthService,
+  email: string,
+  password: string,
+  message: string,
+  address: string,
+  blockchain: string,
+  signature: string
+) {
+  if (!SUPPORTED_COINS.includes(blockchain)) {
+    return { success: false, error: { message: "Unsupported blockchain" } };
+  }
+  await validateEmailAndPassword({ email, password });
+
+  await authService.login({ email, password });
+
+  const verifySignatureData = {
     message,
     address,
     blockchain,
     signature,
-  }: {
-    email: string;
-    password: string;
-    message: string;
-    address: string;
-    blockchain: string;
-    signature: string;
-  }) {
-    if (!SUPPORTED_COINS.includes(blockchain)) {
-      return { success: false, error: { message: "Unsupported blockchain" } };
-    }
-    await validateEmailAndPassword({ email, password });
+  };
 
-    await this.authService.login({ email, password });
+  const response = await api.post<any>(
+    "/v1/wallets/verify",
+    verifySignatureData
+  );
 
-    const verifySignatureData = {
-      message,
-      address,
-      blockchain,
-      signature,
-    };
-
-    const response = await this.api.post<any>(
-      "/v1/wallets/verify",
-      verifySignatureData
-    );
-
-    if (response.ok && response.data) {
-      return response.data;
-    }
-
-    const errorData = response.data as { message?: string } | undefined;
-    const errorMsg = errorData?.message || response.problem || "Unknown error";
-    throw new Error(errorMsg);
+  if (response.ok && response.data) {
+    return response.data;
   }
-}
 
-export { WalletService };
+  const errorData = response.data as { message?: string } | undefined;
+  const errorMsg = errorData?.message || response.problem || "Unknown error";
+  throw new Error(errorMsg);
+}
