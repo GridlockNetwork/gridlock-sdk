@@ -1,11 +1,21 @@
 // index.ts
 import { createApiInstance, GridlockApi } from "./api.js";
-import { UserService } from "./user/user.service.js";
-import { GuardianService } from "./guardian/guardian.service.js";
-import { WalletService } from "./wallet/wallet.service.js";
+import { createUser as createUserService } from "./user/user.service.js";
+import {
+  addGuardian as addGuardianService,
+  addGridlockGuardian as addGridlockGuardianService,
+} from "./guardian/guardian.service.js";
+import {
+  createWallet as createWalletService,
+  signTransaction as signTransactionService,
+  verifySignature as verifySignatureService,
+} from "./wallet/wallet.service.js";
 import { AuthService } from "./auth/index.js";
 import { IRegisterResponse } from "./user/user.interfaces.js";
-import { IAddGuardianParams } from "./guardian/guardian.interfaces.js";
+import {
+  IAddGuardianParams,
+  IGuardian,
+} from "./guardian/guardian.interfaces.js";
 
 export const ETHEREUM = "ethereum";
 export const SOLANA = "solana";
@@ -24,9 +34,6 @@ class GridlockSdk {
   private logger: any;
   api: GridlockApi;
   authService: AuthService;
-  userService: UserService;
-  guardianService: GuardianService;
-  walletService: WalletService;
 
   constructor(props: IGridlockSdkProps) {
     this.apiKey = props.apiKey;
@@ -36,19 +43,6 @@ class GridlockSdk {
     this.api = createApiInstance(this.baseUrl, this.logger, props.verbose);
 
     this.authService = new AuthService(this.api, this.logger, props.verbose);
-    this.userService = new UserService(this.api, this.logger, props.verbose);
-    this.walletService = new WalletService(
-      this.api,
-      this.authService,
-      this.logger,
-      props.verbose
-    );
-    this.guardianService = new GuardianService(
-      this.api,
-      this.authService,
-      this.logger,
-      props.verbose
-    );
   }
 
   setVerbose(verbose: boolean) {
@@ -69,7 +63,7 @@ class GridlockSdk {
     password: string;
   }): Promise<IRegisterResponse> {
     try {
-      return await this.userService.createUser({ name, email, password });
+      return await createUserService(this.api, name, email, password);
     } catch (error) {
       this.api.logError(error);
       throw error;
@@ -83,12 +77,14 @@ class GridlockSdk {
     isOwnerGuardian,
   }: IAddGuardianParams): Promise<any> {
     try {
-      return await this.guardianService.addGuardian({
+      return await addGuardianService(
+        this.api,
+        this.authService,
         email,
         password,
         guardian,
-        isOwnerGuardian,
-      });
+        isOwnerGuardian
+      );
     } catch (error) {
       this.api.logError(error);
       throw error;
@@ -97,7 +93,13 @@ class GridlockSdk {
 
   async createWallet(email: string, password: string, blockchain: string) {
     try {
-      return await this.walletService.createWallet(email, password, blockchain);
+      return await createWalletService(
+        this.api,
+        this.authService,
+        email,
+        password,
+        blockchain
+      );
     } catch (error) {
       this.api.logError(error);
       throw error;
@@ -116,12 +118,14 @@ class GridlockSdk {
     message: string;
   }) {
     try {
-      return await this.walletService.signTransaction({
+      return await signTransactionService(
+        this.api,
+        this.authService,
         email,
         password,
         address,
-        message,
-      });
+        message
+      );
     } catch (error) {
       this.api.logError(error);
       throw error;
@@ -144,27 +148,36 @@ class GridlockSdk {
     signature: string;
   }) {
     try {
-      return await this.walletService.verifySignature({
+      return await verifySignatureService(
+        this.api,
+        this.authService,
         email,
         password,
         message,
         address,
         blockchain,
-        signature,
-      });
+        signature
+      );
     } catch (error) {
       this.api.logError(error);
       throw error;
     }
   }
 
-  async getGridlockGuardians() {
+  async addGridlockGuardian({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }): Promise<IGuardian | null> {
     try {
-      const response = await this.api.get("/sdk/guardian/gridlock");
-      if (response.ok && response.data) {
-        return response.data;
-      }
-      return undefined;
+      return await addGridlockGuardianService(
+        this.api,
+        this.authService,
+        email,
+        password
+      );
     } catch (error) {
       this.api.logError(error);
       throw error;
