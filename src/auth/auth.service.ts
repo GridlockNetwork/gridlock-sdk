@@ -44,7 +44,7 @@ export const validateEmailAndPassword = async ({
 class AuthService {
   private api: ApisauceInstance;
   private logger: any;
-  private verbose: boolean;
+  public verbose: boolean;
 
   constructor(apiInstance: ApisauceInstance, log: any, verb: boolean) {
     this.api = apiInstance;
@@ -66,8 +66,7 @@ class AuthService {
       throw new Error("No refresh token provided.");
     }
 
-    // Log the refresh token for troubleshooting
-    if (this.verbose && this.logger) {
+    if (this.verbose) {
       this.logger.log(`Using refresh token: ${refreshToken}`);
     }
 
@@ -113,36 +112,37 @@ class AuthService {
     try {
       const user = storage.loadUser({ email });
 
-      const { nodeId } = user.ownerGuardian;
-
-      const privateKeyObject = storage.loadKey({
-        identifier: nodeId,
-        type: "identity",
-      });
-
-      const privateKeyBuffer = await key.decryptKey({
-        encryptedKeyObject: privateKeyObject,
-        password,
-      });
-
+      const { ownerGuardianId } = user;
       const nonceResponse = await this.api.post<{ nonce: string }>(
         "/v1/auth/nonce",
-        { nodeId }
+        { ownerGuardianId }
       );
-
       if (!nonceResponse.data || !nonceResponse.data.nonce) {
         throw new Error("Failed to get nonce.");
       }
       const nonce = nonceResponse.data.nonce;
+      console.log("nonce", nonce);
 
+      const privateKeyObject = storage.loadKey({
+        identifier: email,
+        type: "private",
+      });
+      const privateKey = await key.decryptKey({
+        encryptedKeyObject: privateKeyObject,
+        password,
+      });
+
+      const privateKeyBuffer = Buffer.from(privateKey, "base64");
+      console.log("privateKeyBuffer", privateKeyBuffer);
       const signature = crypto.sign(null, Buffer.from(nonce, "hex"), {
         key: privateKeyBuffer,
         format: "der",
         type: "pkcs8",
       });
 
+      console.log("signature", signature);
       const loginResponse = await this.api.post<AccessAndRefreshTokens>(
-        "/v1/auth/login",
+        "/v1/auth/loginChallenge",
         { user, signature: signature.toString("base64") }
       );
       if (

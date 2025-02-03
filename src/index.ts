@@ -31,6 +31,7 @@ interface IGridlockSdkProps {
 class GridlockSdk {
   private apiKey: string;
   private baseUrl: string;
+  private verbose: boolean;
   private logger: any;
   api: GridlockApi;
   authService: AuthService;
@@ -38,15 +39,18 @@ class GridlockSdk {
   constructor(props: IGridlockSdkProps) {
     this.apiKey = props.apiKey;
     this.baseUrl = props.baseUrl;
+    this.verbose = props.verbose;
     this.logger = props.logger || console;
 
-    this.api = createApiInstance(this.baseUrl, this.logger, props.verbose);
+    this.api = createApiInstance(this.baseUrl, this.logger, this.verbose);
 
-    this.authService = new AuthService(this.api, this.logger, props.verbose);
+    this.authService = new AuthService(this.api, this.logger, this.verbose);
   }
 
   setVerbose(verbose: boolean) {
+    this.verbose = verbose;
     this.api.setVerbose(verbose);
+    this.authService.verbose = verbose;
   }
 
   refreshRequestHandler(token: string) {
@@ -178,6 +182,15 @@ class GridlockSdk {
         email,
         password
       );
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  async login(email: string, password: string): Promise<any> {
+    try {
+      return await this.authService.login({ email, password });
     } catch (error) {
       this.api.logError(error);
       throw error;
