@@ -1,9 +1,11 @@
 // index.ts
 import { createApiInstance, GridlockApi } from "./api.js";
-import { encryptContents } from "./key/key.js";
-export { encryptContents };
+import { encryptContents as encryptContentsService } from "./key/key.js";
 
-import { createUser as createUserService } from "./user/user.service.js";
+import {
+  createUser as createUserService,
+  recover as recoverService,
+} from "./user/user.service.js";
 import {
   addGuardian as addGuardianService,
   addGridlockGuardian as addGridlockGuardianService,
@@ -213,12 +215,27 @@ class GridlockSdk {
     password: string;
   }): Promise<string> {
     try {
-      return await encryptContents({
+      return await encryptContentsService({
         content,
         publicKey,
         identifier,
         password,
       });
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  async recover({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }): Promise<any> {
+    try {
+      return await recoverService(this.api, email, password);
     } catch (error) {
       this.api.logError(error);
       throw error;

@@ -1,7 +1,7 @@
 import { ApisauceInstance } from "apisauce";
 import AuthService, { validateEmailAndPassword } from "../auth/auth.service.js";
 import { storage } from "../storage/index.js";
-import { generatePasswordBundle, decryptKey } from "../key/key.js";
+import { generateKeyBundle, decryptKey } from "../key/key.js";
 import { IWallet } from "./wallet.interfaces.js";
 import nacl from "tweetnacl";
 import pkg from "tweetnacl-util";
@@ -38,13 +38,17 @@ export async function createWallet(
     return;
   }
 
-  const passwordBundle = await generatePasswordBundle({ user, password });
+  const keyBundle = await generateKeyBundle({
+    user,
+    password,
+    type: "signing",
+  });
 
   const createWalletData = {
     user,
     blockchain,
     clientPublicKey,
-    passwordBundle,
+    keyBundle,
   };
 
   const response = await api.post<IWallet>("/v1/wallets", createWalletData);
@@ -81,14 +85,18 @@ export async function signTransaction(
     password,
   });
 
-  const passwordBundle = await generatePasswordBundle({ user, password });
+  const keyBundle = await generateKeyBundle({
+    user,
+    password,
+    type: "signing",
+  });
 
   const signTransactionData = {
     user,
     wallet,
     message,
     clientPublicKey,
-    passwordBundle,
+    keyBundle,
   };
 
   await authService.login({ email, password });

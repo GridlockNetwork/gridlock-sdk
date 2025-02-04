@@ -1,22 +1,21 @@
 import crypto from "crypto";
 import nacl from "tweetnacl";
 import type { IUser } from "../user/user.interfaces.js";
-import type {
-  INodePassword,
-  IPasswordBundle,
-} from "../wallet/wallet.interfaces.js";
+import type { INodePassword, IKeyBundle } from "../wallet/wallet.interfaces.js";
 import { storage } from "../storage/index.js";
 
-export async function generatePasswordBundle({
+export async function generateKeyBundle({
   user,
   password,
+  type,
 }: {
   user: IUser;
   password: string;
-}): Promise<IPasswordBundle> {
+  type: string;
+}): Promise<IKeyBundle> {
   const signingKey = await storage.loadKey({
     identifier: user.email,
-    type: "signing",
+    type: type,
   });
 
   const decryptedSigningKey = await decryptKey({
@@ -28,9 +27,10 @@ export async function generatePasswordBundle({
   const nodePool = user.nodePool;
 
   for (const n of nodePool) {
-    const nodeSigningKey = getNodeSigningKey(
+    const nodeSigningKey = deriveNodeSpecificKey(
       Buffer.from(decryptedSigningKey, "base64"),
-      n.nodeId
+      n.nodeId,
+      type
     );
 
     //const fakeNodeSigningKey = nodeSigningKey + "THIS-IS-FAKE-FOR-TESTING";
@@ -40,7 +40,7 @@ export async function generatePasswordBundle({
       identifier: user.email,
       password,
     });
-    nodes.push({ nodeId: n.nodeId, encryptedSigningKey: encryptedContent });
+    nodes.push({ nodeId: n.nodeId, encryptedKey: encryptedContent });
   }
 
   return { nodes };
@@ -106,7 +106,11 @@ export async function decryptKey({
   }
 }
 
-function getNodeSigningKey(signingKey: Buffer, nodeId: string): string {
+export function deriveNodeSpecificKey(
+  signingKey: Buffer,
+  nodeId: string,
+  type: string
+): string {
   const derivedKey = Buffer.from(
     crypto.hkdfSync(
       "sha256",
@@ -116,7 +120,7 @@ function getNodeSigningKey(signingKey: Buffer, nodeId: string): string {
       32
     )
   ).toString("base64");
-  return `node_${nodeId}_${derivedKey}`;
+  return `node_${type}_${nodeId}_${derivedKey}`;
 }
 
 export async function encryptContents({
@@ -175,11 +179,10 @@ export function generateE2EKey(): { publicKey: string; privateKey: string } {
   return { publicKey, privateKey };
 }
 
-export async function generateUserKeys(email: string, password: string) {
+export async function generateE2EKeys(email: string, password: string) {
   const { publicKey, privateKey } = generateE2EKey();
   const encryptedPublicKey = await encryptKey({ key: publicKey, password });
   const encryptedPrivateKey = await encryptKey({ key: privateKey, password });
-
   storage.saveKey({
     identifier: email,
     key: encryptedPublicKey,
@@ -190,17 +193,24 @@ export async function generateUserKeys(email: string, password: string) {
     key: encryptedPrivateKey,
     type: "private",
   });
+}
 
-  const signingKey = await generateSigningKey();
-  const encryptedSigningKey = await encryptKey({ key: signingKey, password });
-
+export async function generateSigningKey(email: string, password: string) {
+  const signingKey = "signing_" + crypto.randomBytes(32).toString("base64");
+  const encryptedKey = await encryptKey({ key: signingKey, password });
   storage.saveKey({
     identifier: email,
-    key: encryptedSigningKey,
+    key: encryptedKey,
     type: "signing",
   });
 }
 
-export async function generateSigningKey(): Promise<string> {
-  return "root_" + crypto.randomBytes(32).toString("base64");
+export async function generateRecoveryKey(email: string, password: string) {
+  const recoveryKey = "recovery_" + crypto.randomBytes(32).toString("base64");
+  const encryptedRecoveryKey = await encryptKey({ key: recoveryKey, password });
+  storage.saveKey({
+    identifier: email,
+    key: encryptedRecoveryKey,
+    type: "recovery",
+  });
 }
