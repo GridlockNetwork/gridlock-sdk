@@ -13,29 +13,31 @@ export async function generateKeyBundle({
   password: string;
   type: string;
 }): Promise<IKeyBundle> {
-  const signingKey = await storage.loadKey({
+  const rootKey = await storage.loadKey({
     identifier: user.email,
     type: type,
   });
 
-  const decryptedSigningKey = await decryptKey({
-    encryptedKeyObject: signingKey,
+  const decryptedRootKey = await decryptKey({
+    encryptedKeyObject: rootKey,
     password,
   });
+
+  console.log(`Root Key of ${type}: ${decryptedRootKey}`);
 
   const nodes: INodePassword[] = [];
   const nodePool = user.nodePool;
 
   for (const n of nodePool) {
-    const nodeSigningKey = deriveNodeSpecificKey(
-      Buffer.from(decryptedSigningKey, "base64"),
+    const nodeSpecificKey = deriveNodeSpecificKey(
+      Buffer.from(decryptedRootKey, "base64"),
       n.nodeId,
       type
     );
 
     //const fakeNodeSigningKey = nodeSigningKey + "THIS-IS-FAKE-FOR-TESTING";
     const encryptedContent = await encryptContents({
-      content: nodeSigningKey,
+      content: nodeSpecificKey,
       publicKey: n.publicKey,
       identifier: user.email,
       password,

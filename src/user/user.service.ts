@@ -68,8 +68,7 @@ export async function recover(
       errorData?.message || recoverResponse.problem || "Unknown error";
     throw new Error(message);
   }
-  console.log("User:", user);
-  console.log("Client Public Key:", clientPublicKey);
+
   console.log("Key Bundle:", keyBundle);
   return { user, clientPublicKey, keyBundle };
 }
