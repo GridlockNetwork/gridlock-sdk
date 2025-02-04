@@ -32,6 +32,8 @@ export async function generatePasswordBundle({
       Buffer.from(decryptedSigningKey, "base64"),
       n.nodeId
     );
+
+    //const fakeNodeSigningKey = nodeSigningKey + "THIS-IS-FAKE-FOR-TESTING";
     const encryptedContent = await encryptContents({
       content: nodeSigningKey,
       publicKey: n.publicKey,

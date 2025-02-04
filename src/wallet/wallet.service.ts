@@ -69,13 +69,26 @@ export async function signTransaction(
   await validateEmailAndPassword({ email, password });
 
   const user = storage.loadUser({ email });
-
   const wallet = storage.loadWallet({ address });
+
+  // Load and decrypt the client public key
+  const encryptedClientPublicKey = storage.loadKey({
+    identifier: email,
+    type: "public",
+  });
+  const clientPublicKey = await decryptKey({
+    encryptedKeyObject: encryptedClientPublicKey,
+    password,
+  });
+
+  const passwordBundle = await generatePasswordBundle({ user, password });
 
   const signTransactionData = {
     user,
     wallet,
     message,
+    clientPublicKey,
+    passwordBundle,
   };
 
   await authService.login({ email, password });
