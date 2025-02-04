@@ -1,9 +1,8 @@
 import { ApisauceInstance } from "apisauce";
 import AuthService, { validateEmailAndPassword } from "../auth/auth.service.js";
 import { storage } from "../storage/index.js";
-import { generatePasswordBundle } from "../key/key.js";
+import { generatePasswordBundle, decryptKey } from "../key/key.js";
 import { IWallet } from "./wallet.interfaces.js";
-import { hashMessage, recoverAddress } from "ethers";
 import nacl from "tweetnacl";
 import pkg from "tweetnacl-util";
 import bs58 from "bs58";
@@ -24,9 +23,14 @@ export async function createWallet(
   await validateEmailAndPassword({ email, password });
 
   const user = storage.loadUser({ email });
-  if (!user) {
-    throw new Error("User not found");
-  }
+  const encryptedClientPublicKey = storage.loadKey({
+    identifier: email,
+    type: "public",
+  });
+  const clientPublicKey = await decryptKey({
+    encryptedKeyObject: encryptedClientPublicKey,
+    password,
+  });
 
   const authTokens = await authService.login({ email, password });
 
@@ -39,6 +43,7 @@ export async function createWallet(
   const createWalletData = {
     user,
     blockchain,
+    clientPublicKey,
     passwordBundle,
   };
 

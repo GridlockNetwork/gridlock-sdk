@@ -1,5 +1,8 @@
 // index.ts
 import { createApiInstance, GridlockApi } from "./api.js";
+import { encryptContents } from "./key/key.js";
+export { encryptContents };
+
 import { createUser as createUserService } from "./user/user.service.js";
 import {
   addGuardian as addGuardianService,
@@ -16,6 +19,7 @@ import {
   IAddGuardianParams,
   IGuardian,
 } from "./guardian/guardian.interfaces.js";
+import { key } from "./key/index.js";
 
 export const ETHEREUM = "ethereum";
 export const SOLANA = "solana";
@@ -191,6 +195,30 @@ class GridlockSdk {
   async login(email: string, password: string): Promise<any> {
     try {
       return await this.authService.login({ email, password });
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  async encryptContents({
+    content,
+    publicKey,
+    identifier,
+    password,
+  }: {
+    content: string;
+    publicKey: string;
+    identifier: string;
+    password: string;
+  }): Promise<string> {
+    try {
+      return await encryptContents({
+        content,
+        publicKey,
+        identifier,
+        password,
+      });
     } catch (error) {
       this.api.logError(error);
       throw error;

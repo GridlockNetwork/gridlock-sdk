@@ -105,7 +105,7 @@ export async function decryptKey({
 }
 
 function getNodeSigningKey(signingKey: Buffer, nodeId: string): string {
-  return Buffer.from(
+  const derivedKey = Buffer.from(
     crypto.hkdfSync(
       "sha256",
       signingKey,
@@ -114,9 +114,10 @@ function getNodeSigningKey(signingKey: Buffer, nodeId: string): string {
       32
     )
   ).toString("base64");
+  return `node_${nodeId}_${derivedKey}`;
 }
 
-async function encryptContents({
+export async function encryptContents({
   content,
   publicKey,
   identifier,
@@ -124,7 +125,7 @@ async function encryptContents({
 }: {
   content: string;
   publicKey: string;
-  identifier: string;
+  identifier: string; //usually email
   password: string;
 }): Promise<string> {
   const encryptedPrivateKey = storage.loadKey({ identifier, type: "private" });
@@ -138,13 +139,13 @@ async function encryptContents({
   const nonce = nacl.randomBytes(nacl.box.nonceLength);
   const messageUint8 = new TextEncoder().encode(content);
   const publicKeyUint8 = Buffer.from(publicKey, "base64");
+  const publicKeyBytes = new Uint8Array(Buffer.from(publicKey, "base64"));
   const encryptedMessage = nacl.box(
     messageUint8,
     nonce,
     publicKeyUint8,
     keyPair.secretKey
   );
-
   return Buffer.concat([nonce, Buffer.from(encryptedMessage)]).toString(
     "base64"
   );
@@ -199,5 +200,5 @@ export async function generateUserKeys(email: string, password: string) {
 }
 
 export async function generateSigningKey(): Promise<string> {
-  return crypto.randomBytes(32).toString("base64");
+  return "root_" + crypto.randomBytes(32).toString("base64");
 }
