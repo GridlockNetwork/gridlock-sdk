@@ -1,7 +1,7 @@
 import { ApisauceInstance } from "apisauce";
 import AuthService, { validateEmailAndPassword } from "../auth/auth.service.js";
-import { storage } from "../storage/index.js";
-import { generateKeyBundle, decryptKey } from "../key/key.js";
+import * as storage from "../storage/storage.service.js";
+import { generateKeyBundle, decryptKey } from "../key/key.service.js";
 import { IWallet } from "./wallet.interfaces.js";
 import nacl from "tweetnacl";
 import pkg from "tweetnacl-util";

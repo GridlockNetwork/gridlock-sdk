@@ -1,6 +1,6 @@
 import { ApisauceInstance } from "apisauce";
-import { storage } from "../storage/index.js";
-import { key } from "../key/index.js";
+import * as storage from "../storage/storage.service.js";
+import * as key from "../key/key.service.js";
 import { IRegisterResponse, IUser } from "./user.interfaces.js";
 
 export async function createUser(

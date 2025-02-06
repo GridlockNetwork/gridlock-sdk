@@ -1,27 +1,15 @@
-// index.ts
-import { createApiInstance, GridlockApi } from "./api.js";
-import { encryptContents as encryptContentsService } from "./key/key.js";
+import * as api from "./api.js";
+import * as key from "./key/key.service.js";
+import * as user from "./user/user.service.js";
+import * as guardian from "./guardian/guardian.service.js";
+import * as wallet from "./wallet/wallet.service.js";
+import AuthService from "./auth/auth.service.js";
 
-import {
-  createUser as createUserService,
-  recover as recoverService,
-} from "./user/user.service.js";
-import {
-  addGuardian as addGuardianService,
-  addGridlockGuardian as addGridlockGuardianService,
-} from "./guardian/guardian.service.js";
-import {
-  createWallet as createWalletService,
-  signTransaction as signTransactionService,
-  verifySignature as verifySignatureService,
-} from "./wallet/wallet.service.js";
-import { AuthService } from "./auth/index.js";
 import { IRegisterResponse } from "./user/user.interfaces.js";
 import {
   IAddGuardianParams,
   IGuardian,
 } from "./guardian/guardian.interfaces.js";
-import { key } from "./key/index.js";
 
 export const ETHEREUM = "ethereum";
 export const SOLANA = "solana";
@@ -39,7 +27,7 @@ class GridlockSdk {
   private baseUrl: string;
   private verbose: boolean;
   private logger: any;
-  api: GridlockApi;
+  api: api.GridlockApi;
   authService: AuthService;
 
   constructor(props: IGridlockSdkProps) {
@@ -48,7 +36,7 @@ class GridlockSdk {
     this.verbose = props.verbose;
     this.logger = props.logger || console;
 
-    this.api = createApiInstance(this.baseUrl, this.logger, this.verbose);
+    this.api = api.createApiInstance(this.baseUrl, this.logger, this.verbose);
 
     this.authService = new AuthService(this.api, this.logger, this.verbose);
   }
@@ -73,7 +61,7 @@ class GridlockSdk {
     password: string;
   }): Promise<IRegisterResponse> {
     try {
-      return await createUserService(this.api, name, email, password);
+      return await user.createUser(this.api, name, email, password);
     } catch (error) {
       this.api.logError(error);
       throw error;
@@ -83,16 +71,16 @@ class GridlockSdk {
   async addGuardian({
     email,
     password,
-    guardian,
+    guardian: g,
     isOwnerGuardian,
   }: IAddGuardianParams): Promise<any> {
     try {
-      return await addGuardianService(
+      return await guardian.addGuardian(
         this.api,
         this.authService,
         email,
         password,
-        guardian,
+        g,
         isOwnerGuardian
       );
     } catch (error) {
@@ -103,7 +91,7 @@ class GridlockSdk {
 
   async createWallet(email: string, password: string, blockchain: string) {
     try {
-      return await createWalletService(
+      return await wallet.createWallet(
         this.api,
         this.authService,
         email,
@@ -128,7 +116,7 @@ class GridlockSdk {
     message: string;
   }) {
     try {
-      return await signTransactionService(
+      return await wallet.signTransaction(
         this.api,
         this.authService,
         email,
@@ -158,7 +146,7 @@ class GridlockSdk {
     signature: string;
   }) {
     try {
-      return await verifySignatureService(
+      return await wallet.verifySignature(
         this.api,
         this.authService,
         email,
@@ -182,7 +170,7 @@ class GridlockSdk {
     password: string;
   }): Promise<IGuardian | null> {
     try {
-      return await addGridlockGuardianService(
+      return await guardian.addGridlockGuardian(
         this.api,
         this.authService,
         email,
@@ -215,7 +203,7 @@ class GridlockSdk {
     password: string;
   }): Promise<string> {
     try {
-      return await encryptContentsService({
+      return await key.encryptContents({
         content,
         publicKey,
         identifier,
@@ -235,7 +223,27 @@ class GridlockSdk {
     password: string;
   }): Promise<any> {
     try {
-      return await recoverService(this.api, email, password);
+      return await user.recover(this.api, email, password);
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  async addSocialGuardian({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }): Promise<void> {
+    try {
+      await guardian.addSocialGuardian(
+        this.api,
+        this.authService,
+        email,
+        password
+      );
     } catch (error) {
       this.api.logError(error);
       throw error;

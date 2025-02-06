@@ -1,8 +1,8 @@
 import { ApisauceInstance } from "apisauce";
 import { AccessAndRefreshTokens, UserCredentials } from "./auth.interfaces.js";
 import { IUser } from "../user/user.interfaces.js";
-import { storage } from "../storage/index.js";
-import { key } from "../key/index.js";
+import * as storage from "../storage/storage.service.js";
+import * as key from "../key/key.service.js";
 import crypto from "crypto";
 
 export const validateEmailAndPassword = async ({

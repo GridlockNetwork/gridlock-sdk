@@ -2,7 +2,7 @@ import crypto from "crypto";
 import nacl from "tweetnacl";
 import type { IUser } from "../user/user.interfaces.js";
 import type { INodePassword, IKeyBundle } from "../wallet/wallet.interfaces.js";
-import { storage } from "../storage/index.js";
+import * as storage from "../storage/storage.service.js";
 
 export async function generateKeyBundle({
   user,
@@ -22,8 +22,6 @@ export async function generateKeyBundle({
     encryptedKeyObject: rootKey,
     password,
   });
-
-  console.log(`Root Key of ${type}: ${decryptedRootKey}`);
 
   const nodes: INodePassword[] = [];
   const nodePool = user.nodePool;
