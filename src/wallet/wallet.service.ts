@@ -23,12 +23,12 @@ export async function createWallet(
   await validateEmailAndPassword({ email, password });
 
   const user = storage.loadUser({ email });
-  const encryptedClientPublicKey = storage.loadKey({
+  const encryptedPublicKey = storage.loadKey({
     identifier: email,
-    type: "public",
+    type: "e2e.public",
   });
-  const clientPublicKey = await decryptKey({
-    encryptedKeyObject: encryptedClientPublicKey,
+  const e2ePublicKey = await decryptKey({
+    encryptedKeyObject: encryptedPublicKey,
     password,
   });
 
@@ -47,16 +47,14 @@ export async function createWallet(
   const createWalletData = {
     user,
     blockchain,
-    clientPublicKey,
+    clientPublicKey: e2ePublicKey,
     keyBundle,
   };
-
   const response = await api.post<IWallet>("/v1/wallets", createWalletData);
   if (response.ok && response.data) {
     storage.saveWallet({ wallet: response.data });
     return response.data;
   }
-
   const errorData = response.data as { message?: string } | undefined;
   const message = errorData?.message || response.problem || "Unknown error";
   throw new Error(message);
@@ -76,12 +74,12 @@ export async function signTransaction(
   const wallet = storage.loadWallet({ address });
 
   // Load and decrypt the client public key
-  const encryptedClientPublicKey = storage.loadKey({
+  const encryptedPublicKey = storage.loadKey({
     identifier: email,
-    type: "public",
+    type: "e2e.public",
   });
-  const clientPublicKey = await decryptKey({
-    encryptedKeyObject: encryptedClientPublicKey,
+  const e2ePublicKey = await decryptKey({
+    encryptedKeyObject: encryptedPublicKey,
     password,
   });
 
@@ -95,7 +93,7 @@ export async function signTransaction(
     user,
     wallet,
     message,
-    clientPublicKey,
+    clientPublicKey: e2ePublicKey,
     keyBundle,
   };
 

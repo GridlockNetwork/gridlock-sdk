@@ -9,17 +9,30 @@ export async function createUser(
   email: string,
   password: string
 ): Promise<IRegisterResponse> {
+  const { publicKey: identityPublicKey } = await key.generateIdentityKeys(
+    email,
+    password
+  );
+
+  const { publicKey: e2ePublicKey } = await key.generateE2EKeys(
+    email,
+    password
+  );
+
+  await key.generateSigningKey(email, password);
+
   const response = await api.post<IRegisterResponse>("/v1/auth/register", {
     name,
     email,
+    identityPublicKey,
+    e2ePublicKey,
   });
 
   if (response.ok && response.data) {
     const { user, authTokens } = response.data;
     storage.saveTokens({ authTokens, email: user.email });
     storage.saveUser({ user });
-    await key.generateE2EKeys(user.email, password);
-    await key.generateSigningKey(user.email, password);
+
     return response.data;
   }
 
@@ -35,7 +48,6 @@ export async function recover(
 ): Promise<any> {
   await key.generateE2EKeys(email, password);
   await key.generateRecoveryKey(email, password);
-  console.log("email stuffs", email, password);
   const response = await api.get<IUser>(`/v1/users/${email}`);
   if (!response.ok || !response.data) {
     const errorData = response.data as { message?: string } | undefined;
@@ -45,9 +57,9 @@ export async function recover(
   const user = response.data;
   const encryptedPublicKey = storage.loadKey({
     identifier: email,
-    type: "public",
+    type: "e2e.public",
   });
-  const clientPublicKey = await key.decryptKey({
+  const e2ePublicKey = await key.decryptKey({
     encryptedKeyObject: encryptedPublicKey,
     password,
   });
@@ -58,7 +70,7 @@ export async function recover(
   });
   const recoverResponse = await api.post("/v1/users/recover", {
     email,
-    clientPublicKey,
+    e2ePublicKey,
     keyBundle,
   });
 
@@ -69,6 +81,5 @@ export async function recover(
     throw new Error(message);
   }
 
-  console.log("Key Bundle:", keyBundle);
-  return { user, clientPublicKey, keyBundle };
+  return { user, e2ePublicKey, keyBundle };
 }

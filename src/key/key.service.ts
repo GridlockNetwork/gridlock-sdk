@@ -134,13 +134,16 @@ export async function encryptContents({
   identifier: string; //usually email
   password: string;
 }): Promise<string> {
-  const encryptedPrivateKey = storage.loadKey({ identifier, type: "private" });
-  const privateKey = await decryptKey({
+  const encryptedPrivateKey = storage.loadKey({
+    identifier,
+    type: "e2e.private",
+  });
+  const e2ePrivateKey = await decryptKey({
     encryptedKeyObject: encryptedPrivateKey,
     password,
   });
   const keyPair = nacl.box.keyPair.fromSecretKey(
-    Buffer.from(privateKey, "base64")
+    Buffer.from(e2ePrivateKey, "base64")
   );
   const nonce = nacl.randomBytes(nacl.box.nonceLength);
   const messageUint8 = new TextEncoder().encode(content);
@@ -172,37 +175,52 @@ async function deriveKey(password: string, salt: Buffer): Promise<Buffer> {
   });
 }
 
-export function generateE2EKey(): { publicKey: string; privateKey: string } {
+export async function generateE2EKeys(email: string, password: string) {
   const keyPair = nacl.box.keyPair();
   const publicKey = Buffer.from(keyPair.publicKey).toString("base64");
   const privateKey = Buffer.from(keyPair.secretKey).toString("base64");
-  return { publicKey, privateKey };
-}
-
-export async function generateE2EKeys(email: string, password: string) {
-  const { publicKey, privateKey } = generateE2EKey();
   const encryptedPublicKey = await encryptKey({ key: publicKey, password });
   const encryptedPrivateKey = await encryptKey({ key: privateKey, password });
   storage.saveKey({
     identifier: email,
     key: encryptedPublicKey,
-    type: "public",
+    type: "e2e.public",
   });
   storage.saveKey({
     identifier: email,
     key: encryptedPrivateKey,
-    type: "private",
+    type: "e2e.private",
   });
+  return { publicKey };
 }
 
 export async function generateSigningKey(email: string, password: string) {
-  const signingKey = "signing_" + crypto.randomBytes(32).toString("base64");
-  const encryptedKey = await encryptKey({ key: signingKey, password });
+  const accessKey = "access_" + crypto.randomBytes(32).toString("base64");
+  const encryptedKey = await encryptKey({ key: accessKey, password });
   storage.saveKey({
     identifier: email,
     key: encryptedKey,
     type: "signing",
   });
+}
+
+export async function generateIdentityKeys(email: string, password: string) {
+  const keyPair = nacl.sign.keyPair();
+  const publicKey = Buffer.from(keyPair.publicKey).toString("base64");
+  const privateKey = Buffer.from(keyPair.secretKey).toString("base64");
+  const encryptedPublicKey = await encryptKey({ key: publicKey, password });
+  const encryptedPrivateKey = await encryptKey({ key: privateKey, password });
+  storage.saveKey({
+    identifier: email,
+    key: encryptedPublicKey,
+    type: "identity.public",
+  });
+  storage.saveKey({
+    identifier: email,
+    key: encryptedPrivateKey,
+    type: "identity.private",
+  });
+  return { publicKey };
 }
 
 export async function generateRecoveryKey(email: string, password: string) {

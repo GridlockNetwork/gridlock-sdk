@@ -70,7 +70,6 @@ export async function addSocialGuardian(
   password: string
 ): Promise<string> {
   await validateEmailAndPassword({ email, password });
-  console.log("Processing social guardian...");
   qrcodeTerminal.generate("https://appgridlock.page.link/KSuHdX9R5SSLvFXH7", {
     small: true,
   });
