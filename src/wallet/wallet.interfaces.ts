@@ -51,6 +51,7 @@ export interface ICreateMultipleWalletResponse {
 export interface INodePassword {
   nodeId: string;
   encryptedKey: string;
+  encryptedRecoveryEmail: string;
 }
 
 export interface IKeyBundle {

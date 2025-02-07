@@ -27,6 +27,13 @@ export async function generateKeyBundle({
   const nodePool = user.nodePool;
 
   for (const n of nodePool) {
+    const encryptedRecoveryEmail = await encryptContents({
+      content: user.email,
+      publicKey: n.publicKey,
+      identifier: user.email,
+      password,
+    });
+
     const nodeSpecificKey = deriveNodeSpecificKey(
       Buffer.from(decryptedRootKey, "base64"),
       n.nodeId,
@@ -40,7 +47,12 @@ export async function generateKeyBundle({
       identifier: user.email,
       password,
     });
-    nodes.push({ nodeId: n.nodeId, encryptedKey: encryptedContent });
+
+    nodes.push({
+      nodeId: n.nodeId,
+      encryptedKey: encryptedContent,
+      encryptedRecoveryEmail,
+    });
   }
 
   return { nodes };

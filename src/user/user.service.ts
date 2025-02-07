@@ -70,7 +70,7 @@ export async function recover(
   });
   const recoverResponse = await api.post("/v1/users/recover", {
     email,
-    e2ePublicKey,
+    clientPublicKey: e2ePublicKey,
     keyBundle,
   });
 
