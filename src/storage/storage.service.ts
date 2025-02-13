@@ -11,6 +11,7 @@ const USERS_DIR = path.join(os.homedir(), ".gridlock-cli", "users");
 const TOKENS_DIR = path.join(os.homedir(), ".gridlock-cli", "tokens");
 const KEYS_DIR = path.join(os.homedir(), ".gridlock-cli", "keys");
 const WALLETS_DIR = path.join(os.homedir(), ".gridlock-cli", "wallets");
+const CREDENTIALS_DIR = path.join(os.homedir(), ".gridlock-cli", "credentials");
 
 function saveData<T>({
   dir,
@@ -154,4 +155,83 @@ export function loadWallet({ address }: { address: string }) {
     dir: WALLETS_DIR,
     filename: `${address}.wallet.json`,
   });
+}
+
+interface StoredCredentials {
+  email: string;
+  password: string;
+  timestamp: string;
+}
+
+export function hasStoredCredentials(): boolean {
+  if (!fs.existsSync(CREDENTIALS_DIR)) {
+    return false;
+  }
+
+  const files = fs.readdirSync(CREDENTIALS_DIR);
+  return files.some((file) => file.endsWith(".credentials.json"));
+}
+
+export function loadStoredCredentials(): StoredCredentials | null {
+  if (!fs.existsSync(CREDENTIALS_DIR)) {
+    return null;
+  }
+
+  const files = fs.readdirSync(CREDENTIALS_DIR);
+  const credentialsFile = files.find((file) =>
+    file.endsWith(".credentials.json")
+  );
+
+  if (!credentialsFile) {
+    return null;
+  }
+
+  try {
+    return loadData<StoredCredentials>({
+      dir: CREDENTIALS_DIR,
+      filename: credentialsFile,
+    });
+  } catch (error) {
+    return null;
+  }
+}
+
+export function saveCredentials({
+  email,
+  password,
+}: {
+  email: string;
+  password: string;
+}) {
+  if (fs.existsSync(CREDENTIALS_DIR)) {
+    const files = fs.readdirSync(CREDENTIALS_DIR);
+    files.forEach((file) => {
+      if (file.endsWith(".credentials.json")) {
+        fs.unlinkSync(path.join(CREDENTIALS_DIR, file));
+      }
+    });
+  }
+
+  const credentials = {
+    email,
+    password,
+    timestamp: new Date().toISOString(),
+  };
+
+  saveData<StoredCredentials>({
+    dir: CREDENTIALS_DIR,
+    filename: `${email}.credentials.json`,
+    data: credentials,
+  });
+}
+
+export function clearStoredCredentials(): void {
+  if (fs.existsSync(CREDENTIALS_DIR)) {
+    const files = fs.readdirSync(CREDENTIALS_DIR);
+    files.forEach((file) => {
+      if (file.endsWith(".credentials.json")) {
+        fs.unlinkSync(path.join(CREDENTIALS_DIR, file));
+      }
+    });
+  }
 }

@@ -78,5 +78,5 @@ export interface IAddGuardianParams {
   email: string;
   password: string;
   guardian: IGuardian;
-  isOwnerGuardian: string;
+  isOwnerGuardian: boolean;
 }

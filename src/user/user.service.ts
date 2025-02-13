@@ -7,7 +7,8 @@ export async function createUser(
   api: ApisauceInstance,
   name: string,
   email: string,
-  password: string
+  password: string,
+  saveCredentials: boolean = false
 ): Promise<IRegisterResponse> {
   const { publicKey: identityPublicKey } = await key.generateIdentityKeys(
     email,
@@ -32,6 +33,10 @@ export async function createUser(
     const { user, authTokens } = response.data;
     storage.saveTokens({ authTokens, email: user.email });
     storage.saveUser({ user });
+
+    if (saveCredentials) {
+      storage.saveCredentials({ email, password });
+    }
 
     return response.data;
   }

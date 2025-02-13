@@ -10,12 +10,12 @@ export async function addGuardian(
   email: string,
   password: string,
   guardian: IGuardian,
-  isOwnerGuardian: string
+  isOwnerGuardian: boolean
 ) {
   await validateEmailAndPassword({ email, password });
 
   const user = storage.loadUser({ email });
-  if (user?.ownerGuardianId && isOwnerGuardian === "true") {
+  if (user?.ownerGuardianId && isOwnerGuardian) {
     throw new Error("There can only be one owner guardian per user");
   }
 

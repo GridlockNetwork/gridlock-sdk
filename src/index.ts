@@ -5,11 +5,12 @@ import * as guardian from "./guardian/guardian.service.js";
 import * as wallet from "./wallet/wallet.service.js";
 import AuthService from "./auth/auth.service.js";
 
-import { IRegisterResponse } from "./user/user.interfaces.js";
+import { IRegisterResponse, IUser } from "./user/user.interfaces.js";
 import {
   IAddGuardianParams,
   IGuardian,
 } from "./guardian/guardian.interfaces.js";
+import * as storage from "./storage/storage.service.js";
 
 export const ETHEREUM = "ethereum";
 export const SOLANA = "solana";
@@ -55,13 +56,21 @@ class GridlockSdk {
     name,
     email,
     password,
+    saveCredentials = false,
   }: {
     name: string;
     email: string;
     password: string;
+    saveCredentials?: boolean;
   }): Promise<IRegisterResponse> {
     try {
-      return await user.createUser(this.api, name, email, password);
+      return await user.createUser(
+        this.api,
+        name,
+        email,
+        password,
+        saveCredentials
+      );
     } catch (error) {
       this.api.logError(error);
       throw error;
@@ -244,6 +253,37 @@ class GridlockSdk {
         email,
         password
       );
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  hasStoredCredentials(): boolean {
+    try {
+      return storage.hasStoredCredentials();
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  loadStoredCredentials(): {
+    email: string;
+    password: string;
+    timestamp: string;
+  } | null {
+    try {
+      return storage.loadStoredCredentials();
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  clearStoredCredentials(): void {
+    try {
+      storage.clearStoredCredentials();
     } catch (error) {
       this.api.logError(error);
       throw error;
