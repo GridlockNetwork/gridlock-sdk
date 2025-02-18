@@ -292,3 +292,18 @@ class GridlockSdk {
 }
 
 export default GridlockSdk;
+
+// Auth module exports
+export * as auth from "./auth/index.js";
+
+// Guardian module exports
+export * as guardian from "./guardian/index.js";
+
+// User module exports
+export * as user from "./user/index.js";
+
+// Wallet module exports
+export * as wallet from "./wallet/index.js";
+
+// Storage module exports
+export * as storage from "./storage/index.js";
