@@ -54,6 +54,7 @@ export interface IGuardian {
     | "partnerGuardian";
   nodeId: string;
   publicKey: string;
+  e2ePublicKey: string;
   active: boolean;
 }
 

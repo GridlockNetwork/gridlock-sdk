@@ -50,6 +50,8 @@ export async function createWallet(
     clientPublicKey: e2ePublicKey,
     keyBundle,
   };
+  // console.log("Create Wallet Data:", createWalletData);
+  // console.log("Create Wallet KeyBundle:", createWalletData.user);
   const response = await api.post<IWallet>("/v1/wallets", createWalletData);
   if (response.ok && response.data) {
     storage.saveWallet({ wallet: response.data });

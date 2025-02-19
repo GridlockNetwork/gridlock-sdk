@@ -29,7 +29,7 @@ export async function generateKeyBundle({
   for (const n of nodePool) {
     const encryptedRecoveryEmail = await encryptContents({
       content: user.email,
-      publicKey: n.publicKey,
+      publicKey: n.e2ePublicKey,
       identifier: user.email,
       password,
     });
@@ -43,7 +43,7 @@ export async function generateKeyBundle({
     //const fakeNodeSigningKey = nodeSigningKey + "THIS-IS-FAKE-FOR-TESTING";
     const encryptedContent = await encryptContents({
       content: nodeSpecificKey,
-      publicKey: n.publicKey,
+      publicKey: n.e2ePublicKey,
       identifier: user.email,
       password,
     });
