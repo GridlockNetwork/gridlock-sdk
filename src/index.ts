@@ -203,19 +203,19 @@ class GridlockSdk {
   async encryptContents({
     content,
     publicKey,
-    identifier,
+    email,
     password,
   }: {
     content: string;
     publicKey: string;
-    identifier: string;
+    email: string;
     password: string;
   }): Promise<string> {
     try {
       return await key.encryptContents({
         content,
         publicKey,
-        identifier,
+        email,
         password,
       });
     } catch (error) {
@@ -224,7 +224,7 @@ class GridlockSdk {
     }
   }
 
-  async recover({
+  async startRecovery({
     email,
     password,
   }: {
@@ -232,7 +232,7 @@ class GridlockSdk {
     password: string;
   }): Promise<any> {
     try {
-      return await user.recover(this.api, email, password);
+      return await user.startRecovery(this.api, email, password);
     } catch (error) {
       this.api.logError(error);
       throw error;
@@ -284,6 +284,28 @@ class GridlockSdk {
   clearStoredCredentials(): void {
     try {
       storage.clearStoredCredentials();
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  async confirmRecovery({
+    email,
+    password,
+    recoveryCode,
+  }: {
+    email: string;
+    password: string;
+    recoveryCode: string;
+  }): Promise<any> {
+    try {
+      return await user.confirmRecovery(
+        this.api,
+        email,
+        password,
+        recoveryCode
+      );
     } catch (error) {
       this.api.logError(error);
       throw error;

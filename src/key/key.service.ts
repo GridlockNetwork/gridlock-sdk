@@ -27,24 +27,26 @@ export async function generateKeyBundle({
   const nodePool = user.nodePool;
 
   for (const n of nodePool) {
-    const encryptedRecoveryEmail = await encryptContents({
-      content: user.email,
-      publicKey: n.e2ePublicKey,
-      identifier: user.email,
-      password,
-    });
-
     const nodeSpecificKey = deriveNodeSpecificKey(
       Buffer.from(decryptedRootKey, "base64"),
       n.nodeId,
       type
     );
 
+    //encrypt node specific recovery key that the guardians can use to circle back to the user
     //const fakeNodeSigningKey = nodeSigningKey + "THIS-IS-FAKE-FOR-TESTING";
     const encryptedContent = await encryptContents({
       content: nodeSpecificKey,
       publicKey: n.e2ePublicKey,
-      identifier: user.email,
+      email: user.email,
+      password,
+    });
+
+    //encrypt recovery email because each guardian might have a different email
+    const encryptedRecoveryEmail = await encryptContents({
+      content: user.email,
+      publicKey: n.e2ePublicKey,
+      email: user.email,
       password,
     });
 
@@ -138,16 +140,16 @@ export function deriveNodeSpecificKey(
 export async function encryptContents({
   content,
   publicKey,
-  identifier,
+  email,
   password,
 }: {
   content: string;
   publicKey: string;
-  identifier: string; //usually email
+  email: string;
   password: string;
 }): Promise<string> {
   const encryptedPrivateKey = storage.loadKey({
-    identifier,
+    identifier: email,
     type: "e2e.private",
   });
   const e2ePrivateKey = await decryptKey({
@@ -160,7 +162,6 @@ export async function encryptContents({
   const nonce = nacl.randomBytes(nacl.box.nonceLength);
   const messageUint8 = new TextEncoder().encode(content);
   const publicKeyUint8 = Buffer.from(publicKey, "base64");
-  const publicKeyBytes = new Uint8Array(Buffer.from(publicKey, "base64"));
   const encryptedMessage = nacl.box(
     messageUint8,
     nonce,
@@ -170,6 +171,65 @@ export async function encryptContents({
   return Buffer.concat([nonce, Buffer.from(encryptedMessage)]).toString(
     "base64"
   );
+}
+
+export async function decryptContents({
+  encryptedContent,
+  senderPublicKey,
+  email,
+  password,
+}: {
+  encryptedContent: string;
+  senderPublicKey?: string;
+  email: string;
+  password: string;
+}): Promise<string> {
+  const encryptedPrivateKey = storage.loadKey({
+    identifier: email,
+    type: "e2e.private",
+  });
+  const e2ePrivateKey = await decryptKey({
+    encryptedKeyObject: encryptedPrivateKey,
+    password,
+  });
+  const recipientSecretKey = Buffer.from(e2ePrivateKey, "base64");
+  const encryptedBuffer = new Uint8Array(
+    Buffer.from(encryptedContent, "base64")
+  );
+  const nonce = encryptedBuffer.slice(0, nacl.box.nonceLength);
+  const cipherText = encryptedBuffer.slice(nacl.box.nonceLength);
+
+  // If senderPublicKey is not provided, load user record and try decrypting with each guardian's e2ePublicKey
+  if (!senderPublicKey) {
+    const user = await storage.loadUser({ email });
+    for (const guardian of user.nodePool) {
+      const guardianPublicKey = Buffer.from(guardian.e2ePublicKey, "base64");
+      const decryptedMessage = nacl.box.open(
+        cipherText,
+        nonce,
+        guardianPublicKey,
+        recipientSecretKey
+      );
+      if (decryptedMessage) {
+        return new TextDecoder().decode(decryptedMessage);
+      }
+    }
+    throw new Error("Decryption failed with all guardians' keys");
+  }
+
+  const senderPublicKeyBuffer = Buffer.from(senderPublicKey, "base64");
+  const decryptedMessage = nacl.box.open(
+    cipherText,
+    nonce,
+    senderPublicKeyBuffer,
+    recipientSecretKey
+  );
+
+  if (!decryptedMessage) {
+    throw new Error("Decryption failed");
+  }
+  const decryptedString = new TextDecoder().decode(decryptedMessage);
+  return decryptedString;
 }
 
 async function deriveKey(password: string, salt: Buffer): Promise<Buffer> {

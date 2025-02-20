@@ -46,12 +46,16 @@ export async function createUser(
   throw new Error(message);
 }
 
-export async function recover(
+export async function startRecovery(
   api: ApisauceInstance,
   email: string,
   password: string
 ): Promise<any> {
   await key.generateE2EKeys(email, password);
+  //recovery technically only needs an e2e key but we're generating a recovery key to
+  //separate the recovery action from communciation encryption functionality
+  //it also protects against strange edge cases like accidentally sending the recovery code
+  //to the wrong guardian
   await key.generateRecoveryKey(email, password);
   const response = await api.get<IUser>(`/v1/users/${email}`);
   if (!response.ok || !response.data) {
@@ -60,12 +64,12 @@ export async function recover(
     throw new Error(message);
   }
   const user = response.data;
-  const encryptedPublicKey = storage.loadKey({
+  const encryptedClientPublicKey = storage.loadKey({
     identifier: email,
     type: "e2e.public",
   });
-  const e2ePublicKey = await key.decryptKey({
-    encryptedKeyObject: encryptedPublicKey,
+  const clientPublicKey = await key.decryptKey({
+    encryptedKeyObject: encryptedClientPublicKey,
     password,
   });
   const keyBundle = await key.generateKeyBundle({
@@ -73,9 +77,9 @@ export async function recover(
     password,
     type: "recovery",
   });
-  const recoverResponse = await api.post("/v1/users/recover", {
+  const recoverResponse = await api.post("/v1/users/recovery", {
     email,
-    clientPublicKey: e2ePublicKey,
+    clientPublicKey,
     keyBundle,
   });
 
@@ -86,5 +90,74 @@ export async function recover(
     throw new Error(message);
   }
 
-  return { user, e2ePublicKey, keyBundle };
+  return { user, clientPublicKey, keyBundle };
+}
+
+export async function confirmRecovery(
+  api: ApisauceInstance,
+  email: string,
+  password: string,
+  recoveryCode: string
+): Promise<any> {
+  const decryptedRecoveryBundle = await key.decryptContents({
+    encryptedContent: recoveryCode,
+    email,
+    password,
+  });
+
+  //once decrypted, confirm the recovery key, then encrypt the contents again to send to the guardian
+  const recoveryBundle = JSON.parse(decryptedRecoveryBundle);
+  const { guardian_node_id, recovery_key, recovery_challenge } = recoveryBundle;
+
+  const encryptedLocalRecoveryKey = await storage.loadKey({
+    identifier: email,
+    type: "recovery",
+  });
+
+  const localRecoveryKey = await key.decryptKey({
+    encryptedKeyObject: encryptedLocalRecoveryKey,
+    password,
+  });
+
+  const nodeSpecificKey = key.deriveNodeSpecificKey(
+    Buffer.from(localRecoveryKey, "base64"),
+    guardian_node_id,
+    "recovery"
+  );
+
+  if (recovery_key !== nodeSpecificKey) {
+    throw new Error("Recovery keys do not match");
+  }
+  const guardian = await storage.loadGuardian({ nodeId: guardian_node_id });
+  const e2ePublicKey = guardian.e2ePublicKey;
+
+  const encryptedRecoveryChallenge = await key.encryptContents({
+    content: recovery_challenge,
+    publicKey: e2ePublicKey,
+    email,
+    password,
+  });
+
+  const encryptedClientPublicKey = storage.loadKey({
+    identifier: email,
+    type: "e2e.public",
+  });
+  const clientPublicKey = await key.decryptKey({
+    encryptedKeyObject: encryptedClientPublicKey,
+    password,
+  });
+
+  const response = await api.post("/v1/users/recovery/confirm", {
+    email,
+    clientPublicKey,
+    recoveryCode: encryptedRecoveryChallenge,
+  });
+
+  if (!response.ok || !response.data) {
+    const errorData = response.data as { message?: string } | undefined;
+    const message = errorData?.message || response.problem || "Unknown error";
+    throw new Error(message);
+  }
+
+  return response.data;
 }
