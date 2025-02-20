@@ -50,14 +50,15 @@ export interface ICreateMultipleWalletResponse {
 
 export interface INodePassword {
   nodeId: string;
-  encryptedSigningKey: string;
+  encryptedKey: string;
+  encryptedRecoveryEmail: string;
 }
 
-export interface IPasswordBundle {
+export interface IKeyBundle {
   nodes: INodePassword[];
 }
 export interface ICreateWalletParams {
   blockchain: string;
   user: IUser;
-  passwordBundle: IPasswordBundle;
+  keyBundle: IKeyBundle;
 }

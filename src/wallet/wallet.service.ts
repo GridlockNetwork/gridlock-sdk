@@ -1,9 +1,8 @@
 import { ApisauceInstance } from "apisauce";
 import AuthService, { validateEmailAndPassword } from "../auth/auth.service.js";
-import { storage } from "../storage/index.js";
-import { generatePasswordBundle } from "../key/key.js";
+import * as storage from "../storage/storage.service.js";
+import { generateKeyBundle, decryptKey } from "../key/key.service.js";
 import { IWallet } from "./wallet.interfaces.js";
-import { hashMessage, recoverAddress } from "ethers";
 import nacl from "tweetnacl";
 import pkg from "tweetnacl-util";
 import bs58 from "bs58";
@@ -24,9 +23,14 @@ export async function createWallet(
   await validateEmailAndPassword({ email, password });
 
   const user = storage.loadUser({ email });
-  if (!user) {
-    throw new Error("User not found");
-  }
+  const encryptedPublicKey = storage.loadKey({
+    identifier: email,
+    type: "e2e.public",
+  });
+  const e2ePublicKey = await decryptKey({
+    encryptedKeyObject: encryptedPublicKey,
+    password,
+  });
 
   const authTokens = await authService.login({ email, password });
 
@@ -34,20 +38,25 @@ export async function createWallet(
     return;
   }
 
-  const passwordBundle = await generatePasswordBundle({ user, password });
+  const keyBundle = await generateKeyBundle({
+    user,
+    password,
+    type: "signing",
+  });
 
   const createWalletData = {
     user,
     blockchain,
-    passwordBundle,
+    clientPublicKey: e2ePublicKey,
+    keyBundle,
   };
-
+  // console.log("Create Wallet Data:", createWalletData);
+  // console.log("Create Wallet KeyBundle:", createWalletData.user);
   const response = await api.post<IWallet>("/v1/wallets", createWalletData);
   if (response.ok && response.data) {
     storage.saveWallet({ wallet: response.data });
     return response.data;
   }
-
   const errorData = response.data as { message?: string } | undefined;
   const message = errorData?.message || response.problem || "Unknown error";
   throw new Error(message);
@@ -64,13 +73,30 @@ export async function signTransaction(
   await validateEmailAndPassword({ email, password });
 
   const user = storage.loadUser({ email });
-
   const wallet = storage.loadWallet({ address });
+
+  // Load and decrypt the client public key
+  const encryptedPublicKey = storage.loadKey({
+    identifier: email,
+    type: "e2e.public",
+  });
+  const e2ePublicKey = await decryptKey({
+    encryptedKeyObject: encryptedPublicKey,
+    password,
+  });
+
+  const keyBundle = await generateKeyBundle({
+    user,
+    password,
+    type: "signing",
+  });
 
   const signTransactionData = {
     user,
     wallet,
     message,
+    clientPublicKey: e2ePublicKey,
+    keyBundle,
   };
 
   await authService.login({ email, password });

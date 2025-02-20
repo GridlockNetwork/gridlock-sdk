@@ -1,7 +1,8 @@
-import { storage } from "../storage/index.js";
+import * as storage from "../storage/storage.service.js";
 import AuthService, { validateEmailAndPassword } from "../auth/auth.service.js";
 import type { IGuardian } from "./guardian.interfaces.js";
 import { ApisauceInstance } from "apisauce";
+import qrcodeTerminal from "qrcode-terminal";
 
 export async function addGuardian(
   api: ApisauceInstance,
@@ -60,4 +61,17 @@ export async function addGridlockGuardian(
     const message = errorData?.message || response.problem || "Unknown error";
     throw new Error(message);
   }
+}
+
+export async function addSocialGuardian(
+  api: ApisauceInstance,
+  authService: AuthService,
+  email: string,
+  password: string
+): Promise<string> {
+  await validateEmailAndPassword({ email, password });
+  qrcodeTerminal.generate("https://appgridlock.page.link/KSuHdX9R5SSLvFXH7", {
+    small: true,
+  });
+  return "adfads";
 }

@@ -1,3 +1,1 @@
-import * as user from "./user.service.js";
-
-export { user };
+export * from "./user.service.js";

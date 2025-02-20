@@ -1,9 +1,11 @@
 import { ApisauceInstance } from "apisauce";
 import { AccessAndRefreshTokens, UserCredentials } from "./auth.interfaces.js";
-import { IUser } from "../user/user.interfaces.js";
-import { storage } from "../storage/index.js";
-import { key } from "../key/index.js";
-import crypto from "crypto";
+import * as storage from "../storage/storage.service.js";
+import * as key from "../key/key.service.js";
+import nacl from "tweetnacl";
+import pkg from "tweetnacl-util";
+
+const { encodeBase64 } = pkg;
 
 export const validateEmailAndPassword = async ({
   email,
@@ -17,7 +19,7 @@ export const validateEmailAndPassword = async ({
   try {
     encryptedKeyObject = await storage.loadKey({
       identifier: email,
-      type: "public",
+      type: "identity.public",
     });
   } catch (error) {
     if (error instanceof Error) {
@@ -58,12 +60,18 @@ class AuthService {
   }: {
     email?: string;
     token?: string;
-  }): Promise<AccessAndRefreshTokens> {
-    const refreshToken =
-      token || (email ? storage.loadToken({ email, type: "refresh" }) : null);
-
+  }): Promise<AccessAndRefreshTokens | null> {
+    let refreshToken = token;
+    if (!refreshToken && email) {
+      try {
+        const foundToken = storage.loadToken({ email, type: "refresh" });
+        refreshToken = foundToken !== null ? foundToken : undefined;
+      } catch {
+        return null; //no token found
+      }
+    }
     if (!refreshToken) {
-      throw new Error("No refresh token provided.");
+      return null;
     }
 
     if (this.verbose) {
@@ -95,10 +103,10 @@ class AuthService {
       if (response.data) {
         return response.data;
       } else {
-        throw new Error("Failed to refresh tokens: No data received.");
+        return null; // Return null on invalid token
       }
     } else {
-      throw new Error(`Failed to refresh tokens: ${response.problem}`);
+      return null; // Return null on invalid token
     }
   }
 
@@ -115,35 +123,31 @@ class AuthService {
       const { ownerGuardianId } = user;
       const nonceResponse = await this.api.post<{ nonce: string }>(
         "/v1/auth/nonce",
-        { ownerGuardianId }
+        { email }
       );
       if (!nonceResponse.data || !nonceResponse.data.nonce) {
         throw new Error("Failed to get nonce.");
       }
       const nonce = nonceResponse.data.nonce;
-      console.log("nonce", nonce);
 
       const privateKeyObject = storage.loadKey({
         identifier: email,
-        type: "private",
+        type: "identity.private",
       });
+
       const privateKey = await key.decryptKey({
         encryptedKeyObject: privateKeyObject,
         password,
       });
-
       const privateKeyBuffer = Buffer.from(privateKey, "base64");
-      console.log("privateKeyBuffer", privateKeyBuffer);
-      const signature = crypto.sign(null, Buffer.from(nonce, "hex"), {
-        key: privateKeyBuffer,
-        format: "der",
-        type: "pkcs8",
-      });
 
-      console.log("signature", signature);
+      const message = Buffer.from(nonce, "hex");
+      const signature = nacl.sign.detached(message, privateKeyBuffer);
+      const signatureBase64 = encodeBase64(signature);
+
       const loginResponse = await this.api.post<AccessAndRefreshTokens>(
         "/v1/auth/loginChallenge",
-        { user, signature: signature.toString("base64") }
+        { email, signature: signatureBase64 }
       );
       if (
         loginResponse.status &&
@@ -173,22 +177,15 @@ class AuthService {
     email,
     password,
   }: UserCredentials): Promise<AccessAndRefreshTokens> {
-    try {
-      let authTokens = await this.loginWithToken({ email });
-      if (!authTokens) {
-        authTokens = await this.loginWithKey({ email, password });
-      }
-      if (authTokens) {
-        storage.saveTokens({ authTokens, email });
-        return authTokens;
-      } else {
-        throw new Error("Failed to login.");
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      throw new Error(errorMessage);
+    let authTokens = await this.loginWithToken({ email });
+    if (!authTokens) {
+      authTokens = await this.loginWithKey({ email, password });
     }
+    if (authTokens) {
+      storage.saveTokens({ authTokens, email });
+      return authTokens;
+    }
+    throw new Error("Failed to login.");
   }
 }
 

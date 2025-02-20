@@ -1,3 +1,1 @@
-import * as key from "./key.js";
-
-export { key };
+export * from "./key.service.js";
