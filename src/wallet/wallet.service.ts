@@ -23,6 +23,18 @@ export async function createWallet(
   await validateEmailAndPassword({ email, password });
 
   const user = storage.loadUser({ email });
+
+  if (!user.ownerGuardianId) {
+    throw new Error(
+      "Complete guardian setup by adding a guardian of type 'Owner Guardian' to create a wallet."
+    );
+  }
+  if (!user.nodePool || user.nodePool.length < 3) {
+    throw new Error(
+      "You must have at least three guardians in your node pool to create a wallet."
+    );
+  }
+
   const encryptedPublicKey = storage.loadKey({
     identifier: email,
     type: "e2e.public",

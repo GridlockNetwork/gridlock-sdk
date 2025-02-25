@@ -214,7 +214,9 @@ export async function decryptContents({
         return new TextDecoder().decode(decryptedMessage);
       }
     }
-    throw new Error("Decryption failed with all guardians' keys");
+    throw new Error(
+      "Unable to decrypt message based on known public keys from all guardians. It's likely that the correct encrypted message was not entered."
+    );
   }
 
   const senderPublicKeyBuffer = Buffer.from(senderPublicKey, "base64");
@@ -226,7 +228,9 @@ export async function decryptContents({
   );
 
   if (!decryptedMessage) {
-    throw new Error("Decryption failed");
+    throw new Error(
+      "Unable to decrypt message based on provided ciphertext and public key."
+    );
   }
   const decryptedString = new TextDecoder().decode(decryptedMessage);
   return decryptedString;

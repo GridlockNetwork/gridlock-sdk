@@ -99,45 +99,41 @@ export async function confirmRecovery(
   password: string,
   recoveryCode: string
 ): Promise<any> {
+  //decrypt the recovery code
   const decryptedRecoveryBundle = await key.decryptContents({
     encryptedContent: recoveryCode,
     email,
     password,
   });
 
-  //once decrypted, confirm the recovery key, then encrypt the contents again to send to the guardian
+  //load local recovery key from file and compare to code provided by guardian
   const recoveryBundle = JSON.parse(decryptedRecoveryBundle);
   const { guardian_node_id, recovery_key, recovery_challenge } = recoveryBundle;
-
   const encryptedLocalRecoveryKey = await storage.loadKey({
     identifier: email,
     type: "recovery",
   });
-
   const localRecoveryKey = await key.decryptKey({
     encryptedKeyObject: encryptedLocalRecoveryKey,
     password,
   });
-
   const nodeSpecificKey = key.deriveNodeSpecificKey(
     Buffer.from(localRecoveryKey, "base64"),
     guardian_node_id,
     "recovery"
   );
-
   if (recovery_key !== nodeSpecificKey) {
     throw new Error("Recovery keys do not match");
   }
+
   const guardian = await storage.loadGuardian({ nodeId: guardian_node_id });
   const e2ePublicKey = guardian.e2ePublicKey;
-
   const encryptedRecoveryChallenge = await key.encryptContents({
     content: recovery_challenge,
     publicKey: e2ePublicKey,
     email,
     password,
   });
-
   const encryptedClientPublicKey = storage.loadKey({
     identifier: email,
     type: "e2e.public",
@@ -146,7 +142,8 @@ export async function confirmRecovery(
     encryptedKeyObject: encryptedClientPublicKey,
     password,
   });
-
+  console.log("recovery_challenge", recovery_challenge);
+  console.log("encryptedRecoveryChallenge", encryptedRecoveryChallenge);
   const response = await api.post("/v1/users/recovery/confirm", {
     email,
     clientPublicKey,
