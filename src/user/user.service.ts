@@ -142,8 +142,6 @@ export async function confirmRecovery(
     encryptedKeyObject: encryptedClientPublicKey,
     password,
   });
-  console.log("recovery_challenge", recovery_challenge);
-  console.log("encryptedRecoveryChallenge", encryptedRecoveryChallenge);
   const response = await api.post("/v1/users/recovery/confirm", {
     email,
     clientPublicKey,
