@@ -39,6 +39,7 @@ export async function createWallet(
     identifier: email,
     type: "e2e.public",
   });
+
   const e2ePublicKey = await decryptKey({
     encryptedKeyObject: encryptedPublicKey,
     password,
@@ -62,8 +63,7 @@ export async function createWallet(
     clientPublicKey: e2ePublicKey,
     keyBundle,
   };
-  // console.log("Create Wallet Data:", createWalletData);
-  // console.log("Create Wallet KeyBundle:", createWalletData.user);
+
   const response = await api.post<IWallet>("/v1/wallets", createWalletData);
   if (response.ok && response.data) {
     storage.saveWallet({ wallet: response.data });
@@ -131,20 +131,20 @@ export async function verifySignature(
   password: string,
   message: string,
   address: string,
-  blockchain: string,
   signature: string
 ) {
-  if (!SUPPORTED_COINS.includes(blockchain)) {
-    return { success: false, error: { message: "Unsupported blockchain" } };
-  }
   await validateEmailAndPassword({ email, password });
+
+  const wallet = storage.loadWallet({ address });
+  if (!wallet) {
+    throw new Error(`Wallet with address ${address} not found`);
+  }
 
   await authService.login({ email, password });
 
   const verifySignatureData = {
     message,
-    address,
-    blockchain,
+    wallet,
     signature,
   };
 

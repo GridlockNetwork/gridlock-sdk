@@ -1,6 +1,6 @@
 import * as storage from "../storage/storage.service.js";
 import AuthService, { validateEmailAndPassword } from "../auth/auth.service.js";
-import type { IGuardian } from "./guardian.interfaces.js";
+import type { IGuardian, IAddGuardianResponse } from "./guardian.interfaces.js";
 import { ApisauceInstance } from "apisauce";
 import qrcodeTerminal from "qrcode-terminal";
 
@@ -28,7 +28,7 @@ export async function addGuardian(
   if (response.ok && response.data) {
     storage.saveUser({ user: response.data });
     storage.saveGuardian({ guardian });
-    return response.data;
+    return { user: response.data, guardian };
   } else {
     const errorData = response.data as { message?: string } | undefined;
     const message = errorData?.message || response.problem || "Unknown error";
@@ -36,26 +36,37 @@ export async function addGuardian(
   }
 }
 
-export async function addGridlockGuardian(
+export async function addProfessionalGuardian(
   api: ApisauceInstance,
   authService: AuthService,
   email: string,
-  password: string
-): Promise<IGuardian | null> {
+  password: string,
+  type: "gridlock" | "partner"
+): Promise<IAddGuardianResponse> {
   await validateEmailAndPassword({ email, password });
 
   const user = storage.loadUser({ email });
 
   await authService.login({ email, password });
 
-  const response = await api.post<any>("/v1/users/addGuardian/gridlock", {
-    email,
-  });
+  let response;
+  if (type === "partner") {
+    response = await api.post<any>("/v1/users/addGuardian/partner", {
+      email,
+      type,
+    });
+  } else {
+    response = await api.post<any>("/v1/users/addGuardian/gridlock", {
+      email,
+      type,
+    });
+  }
+
   if (response.ok && response.data) {
     const { user, guardian } = response.data;
     storage.saveUser({ user });
     storage.saveGuardian({ guardian });
-    return guardian;
+    return response.data;
   } else {
     const errorData = response.data as { message?: string } | undefined;
     const message = errorData?.message || response.problem || "Unknown error";

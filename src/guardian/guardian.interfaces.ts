@@ -45,17 +45,15 @@ export interface IUserStatusResponse {
 
 export interface IGuardian {
   name: string;
-  type:
-    | "ownerGuardian"
-    | "socialGuardian"
-    | "localGuardian"
-    | "cloudGuardian"
-    | "gridlockGuardian"
-    | "partnerGuardian";
+  type: "owner" | "social" | "local" | "cloud" | "gridlock" | "partner";
   nodeId: string;
   publicKey: string;
   e2ePublicKey: string;
   active: boolean;
+}
+export interface IAddGuardianResponse {
+  user: IUser;
+  guardian: IGuardian;
 }
 
 export interface IReplaceGuardianResponse {

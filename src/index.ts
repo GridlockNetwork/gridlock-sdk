@@ -8,7 +8,7 @@ import AuthService from "./auth/auth.service.js";
 import { IRegisterResponse, IUser } from "./user/user.interfaces.js";
 import {
   IAddGuardianParams,
-  IGuardian,
+  IAddGuardianResponse,
 } from "./guardian/guardian.interfaces.js";
 import * as storage from "./storage/storage.service.js";
 
@@ -98,7 +98,15 @@ class GridlockSdk {
     }
   }
 
-  async createWallet(email: string, password: string, blockchain: string) {
+  async createWallet({
+    email,
+    password,
+    blockchain,
+  }: {
+    email: string;
+    password: string;
+    blockchain: string;
+  }) {
     try {
       return await wallet.createWallet(
         this.api,
@@ -144,14 +152,12 @@ class GridlockSdk {
     password,
     message,
     address,
-    blockchain,
     signature,
   }: {
     email: string;
     password: string;
     message: string;
     address: string;
-    blockchain: string;
     signature: string;
   }) {
     try {
@@ -162,7 +168,6 @@ class GridlockSdk {
         password,
         message,
         address,
-        blockchain,
         signature
       );
     } catch (error) {
@@ -171,19 +176,22 @@ class GridlockSdk {
     }
   }
 
-  async addGridlockGuardian({
+  async addProfessionalGuardian({
     email,
     password,
+    type,
   }: {
     email: string;
     password: string;
-  }): Promise<IGuardian | null> {
+    type: "gridlock" | "partner";
+  }): Promise<IAddGuardianResponse> {
     try {
-      return await guardian.addGridlockGuardian(
+      return await guardian.addProfessionalGuardian(
         this.api,
         this.authService,
         email,
-        password
+        password,
+        type
       );
     } catch (error) {
       this.api.logError(error);
@@ -191,7 +199,13 @@ class GridlockSdk {
     }
   }
 
-  async login(email: string, password: string): Promise<any> {
+  async login({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }): Promise<any> {
     try {
       return await this.authService.login({ email, password });
     } catch (error) {
@@ -275,6 +289,21 @@ class GridlockSdk {
   } | null {
     try {
       return storage.loadStoredCredentials();
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  async saveStoredCredentials({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }): Promise<void> {
+    try {
+      return await storage.saveStoredCredentials({ email, password });
     } catch (error) {
       this.api.logError(error);
       throw error;

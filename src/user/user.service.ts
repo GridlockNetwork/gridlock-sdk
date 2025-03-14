@@ -35,7 +35,7 @@ export async function createUser(
     storage.saveUser({ user });
 
     if (saveCredentials) {
-      storage.saveCredentials({ email, password });
+      storage.saveStoredCredentials({ email, password });
     }
 
     return response.data;

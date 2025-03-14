@@ -5,6 +5,7 @@ import os from "os";
 import type { IUser } from "../user/user.interfaces.js";
 import type { IGuardian } from "../guardian/guardian.interfaces.js";
 import type { AccessAndRefreshTokens } from "../auth/auth.interfaces.js";
+import { validateEmailAndPassword } from "../auth/auth.service.js";
 
 const GUARDIANS_DIR = path.join(os.homedir(), ".gridlock-cli", "guardians");
 const USERS_DIR = path.join(os.homedir(), ".gridlock-cli", "users");
@@ -196,13 +197,15 @@ export function loadStoredCredentials(): StoredCredentials | null {
   }
 }
 
-export function saveCredentials({
+export async function saveStoredCredentials({
   email,
   password,
 }: {
   email: string;
   password: string;
 }) {
+  await validateEmailAndPassword({ email, password });
+
   if (fs.existsSync(CREDENTIALS_DIR)) {
     const files = fs.readdirSync(CREDENTIALS_DIR);
     files.forEach((file) => {

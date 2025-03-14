@@ -64,7 +64,7 @@ class AuthService {
     let refreshToken = token;
     if (!refreshToken && email) {
       try {
-        const foundToken = storage.loadToken({ email, type: "refresh" });
+        const foundToken = await storage.loadToken({ email, type: "refresh" });
         refreshToken = foundToken !== null ? foundToken : undefined;
       } catch {
         return null; //no token found
@@ -103,10 +103,10 @@ class AuthService {
       if (response.data) {
         return response.data;
       } else {
-        return null; // Return null on invalid token
+        return null;
       }
     } else {
-      return null; // Return null on invalid token
+      return null;
     }
   }
 
@@ -118,7 +118,7 @@ class AuthService {
     password: string;
   }): Promise<AccessAndRefreshTokens> {
     try {
-      const user = storage.loadUser({ email });
+      const user = await storage.loadUser({ email });
 
       const { ownerGuardianId } = user;
       const nonceResponse = await this.api.post<{ nonce: string }>(
@@ -130,7 +130,7 @@ class AuthService {
       }
       const nonce = nonceResponse.data.nonce;
 
-      const privateKeyObject = storage.loadKey({
+      const privateKeyObject = await storage.loadKey({
         identifier: email,
         type: "identity.private",
       });
@@ -182,7 +182,7 @@ class AuthService {
       authTokens = await this.loginWithKey({ email, password });
     }
     if (authTokens) {
-      storage.saveTokens({ authTokens, email });
+      await storage.saveTokens({ authTokens, email });
       return authTokens;
     }
     throw new Error("Failed to login.");
