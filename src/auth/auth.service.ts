@@ -19,7 +19,7 @@ export const validateEmailAndPassword = async ({
   try {
     encryptedKeyObject = await storage.loadKey({
       identifier: email,
-      type: "identity.public",
+      type: "identity.private",
     });
   } catch (error) {
     if (error instanceof Error) {

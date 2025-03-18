@@ -1,7 +1,7 @@
 import { ApisauceInstance } from "apisauce";
 import AuthService, { validateEmailAndPassword } from "../auth/auth.service.js";
 import * as storage from "../storage/storage.service.js";
-import { generateKeyBundle, decryptKey } from "../key/key.service.js";
+import { generateKeyBundle } from "../key/key.service.js";
 import { IWallet } from "./wallet.interfaces.js";
 import nacl from "tweetnacl";
 import pkg from "tweetnacl-util";
@@ -35,22 +35,18 @@ export async function createWallet(
     );
   }
 
-  const encryptedPublicKey = storage.loadKey({
+  const publicKeyObj = storage.loadKey({
     identifier: email,
     type: "e2e.public",
   });
-
-  const e2ePublicKey = await decryptKey({
-    encryptedKeyObject: encryptedPublicKey,
-    password,
-  });
+  // Access the key directly from the object since it's no longer encrypted
+  const e2ePublicKey = publicKeyObj.key;
 
   const authTokens = await authService.login({ email, password });
 
   if (!authTokens) {
     return;
   }
-
   const keyBundle = await generateKeyBundle({
     user,
     password,
@@ -87,15 +83,12 @@ export async function signTransaction(
   const user = storage.loadUser({ email });
   const wallet = storage.loadWallet({ address });
 
-  // Load and decrypt the client public key
-  const encryptedPublicKey = storage.loadKey({
+  // Load the client public key (no decryption needed)
+  const publicKeyObj = storage.loadKey({
     identifier: email,
     type: "e2e.public",
   });
-  const e2ePublicKey = await decryptKey({
-    encryptedKeyObject: encryptedPublicKey,
-    password,
-  });
+  const e2ePublicKey = publicKeyObj.key;
 
   const keyBundle = await generateKeyBundle({
     user,

@@ -238,3 +238,18 @@ export function clearStoredCredentials(): void {
     });
   }
 }
+
+export function deleteKey({
+  identifier,
+  type,
+}: {
+  identifier: string;
+  type: string;
+}) {
+  const filePath = path.join(KEYS_DIR, `${identifier}.${type}.key.json`);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  } else {
+    throw new Error(`Key file does not exist: ${filePath}`);
+  }
+}

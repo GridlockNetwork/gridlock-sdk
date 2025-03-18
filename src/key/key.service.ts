@@ -215,7 +215,7 @@ export async function decryptContents({
       }
     }
     throw new Error(
-      "Unable to decrypt message based on known public keys from all guardians. It's likely that the correct encrypted message was not entered."
+      "Unable to decrypt message based on known public keys from all guardians. It's likely that an incorrect encrypted message was entered."
     );
   }
 
@@ -255,13 +255,13 @@ export async function generateE2EKeys(email: string, password: string) {
   const keyPair = nacl.box.keyPair();
   const publicKey = Buffer.from(keyPair.publicKey).toString("base64");
   const privateKey = Buffer.from(keyPair.secretKey).toString("base64");
-  const encryptedPublicKey = await encryptKey({ key: publicKey, password });
-  const encryptedPrivateKey = await encryptKey({ key: privateKey, password });
+  // Store public key directly without encryption
   storage.saveKey({
     identifier: email,
-    key: encryptedPublicKey,
+    key: { key: publicKey, createdAt: new Date().toISOString() },
     type: "e2e.public",
   });
+  const encryptedPrivateKey = await encryptKey({ key: privateKey, password });
   storage.saveKey({
     identifier: email,
     key: encryptedPrivateKey,
@@ -284,13 +284,13 @@ export async function generateIdentityKeys(email: string, password: string) {
   const keyPair = nacl.sign.keyPair();
   const publicKey = Buffer.from(keyPair.publicKey).toString("base64");
   const privateKey = Buffer.from(keyPair.secretKey).toString("base64");
-  const encryptedPublicKey = await encryptKey({ key: publicKey, password });
-  const encryptedPrivateKey = await encryptKey({ key: privateKey, password });
+  // Store public key directly without encryption
   storage.saveKey({
     identifier: email,
-    key: encryptedPublicKey,
+    key: { key: publicKey, createdAt: new Date().toISOString() },
     type: "identity.public",
   });
+  const encryptedPrivateKey = await encryptKey({ key: privateKey, password });
   storage.saveKey({
     identifier: email,
     key: encryptedPrivateKey,
@@ -307,4 +307,153 @@ export async function generateRecoveryKey(email: string, password: string) {
     key: encryptedRecoveryKey,
     type: "recovery",
   });
+}
+
+export async function backupIdentityKeys(email: string) {
+  try {
+    // Check if identity keys exist before attempting to back them up
+    const publicKeyExists = await keyFileExists({
+      identifier: email,
+      type: "identity.public",
+    });
+
+    const privateKeyExists = await keyFileExists({
+      identifier: email,
+      type: "identity.private",
+    });
+
+    if (publicKeyExists) {
+      // Load and save public key with .old suffix
+      const publicKey = await storage.loadKey({
+        identifier: email,
+        type: "identity.public",
+      });
+
+      await storage.saveKey({
+        identifier: email,
+        key: publicKey,
+        type: "identity.public.old",
+      });
+    }
+
+    if (privateKeyExists) {
+      // Load and save private key with .old suffix
+      const privateKey = await storage.loadKey({
+        identifier: email,
+        type: "identity.private",
+      });
+
+      await storage.saveKey({
+        identifier: email,
+        key: privateKey,
+        type: "identity.private.old",
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    if (error instanceof Error) {
+      console.warn(`Warning while backing up identity keys: ${error.message}`);
+    } else {
+      console.warn(
+        "An unknown warning occurred while backing up identity keys"
+      );
+    }
+    // Return success anyway since this is optional
+    return { success: true };
+  }
+}
+
+// Helper function to check if a key file exists
+async function keyFileExists({
+  identifier,
+  type,
+}: {
+  identifier: string;
+  type: string;
+}): Promise<boolean> {
+  try {
+    // This will throw an error if the file doesn't exist
+    await storage.loadKey({
+      identifier,
+      type,
+    });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+export async function convertRecoveryKeyToSigningKey(
+  email: string,
+  password: string
+) {
+  try {
+    // Check if signing key exists before attempting to back it up
+    const signingKeyExists = await keyFileExists({
+      identifier: email,
+      type: "signing",
+    });
+
+    if (signingKeyExists) {
+      // Backup existing signing key if it exists
+      const signingKey = await storage.loadKey({
+        identifier: email,
+        type: "signing",
+      });
+
+      await storage.saveKey({
+        identifier: email,
+        key: signingKey,
+        type: "signing.old",
+      });
+    }
+
+    // Check if recovery key exists
+    const recoveryKeyExists = await keyFileExists({
+      identifier: email,
+      type: "recovery",
+    });
+
+    if (recoveryKeyExists) {
+      // Load recovery key and use it as the new signing key
+      const recoveryKey = await storage.loadKey({
+        identifier: email,
+        type: "recovery",
+      });
+
+      // Save the recovery key as the new signing key
+      await storage.saveKey({
+        identifier: email,
+        key: recoveryKey,
+        type: "signing",
+      });
+
+      // Delete the recovery key file since it's now being used as the signing key
+      await storage.deleteKey({
+        identifier: email,
+        type: "recovery",
+      });
+
+      return { success: true, converted: true };
+    } else {
+      // Recovery key doesn't exist - it might have been already converted
+      // in a previous recovery confirmation from another node
+      console.log(
+        "Recovery key not found - it may have been already converted to a signing key."
+      );
+      return { success: true, converted: false };
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      console.warn(`Warning during recovery key conversion: ${error.message}`);
+      // Don't throw, just return with success: false
+      return { success: false, error: error.message };
+    } else {
+      console.warn(
+        "An unknown warning occurred during recovery key conversion"
+      );
+      return { success: false, error: "Unknown error" };
+    }
+  }
 }
