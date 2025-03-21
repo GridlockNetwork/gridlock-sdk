@@ -48,14 +48,16 @@ export interface ICreateMultipleWalletResponse {
   carrierWallet?: IGiftCoinWallet;
 }
 
-export interface INodePassword {
+export interface INodeAccessKey {
   nodeId: string;
-  encryptedKey: string;
+  timestamp: string;
+  encryptedNodeKey: string;
   encryptedRecoveryEmail: string;
+  messageHMAC: string;
 }
 
 export interface IKeyBundle {
-  nodes: INodePassword[];
+  nodes: INodeAccessKey[];
 }
 export interface ICreateWalletParams {
   blockchain: string;

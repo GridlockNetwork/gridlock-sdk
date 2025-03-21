@@ -1,7 +1,10 @@
 import crypto from "crypto";
 import nacl from "tweetnacl";
 import type { IUser } from "../user/user.interfaces.js";
-import type { INodePassword, IKeyBundle } from "../wallet/wallet.interfaces.js";
+import type {
+  INodeAccessKey,
+  IKeyBundle,
+} from "../wallet/wallet.interfaces.js";
 import * as storage from "../storage/storage.service.js";
 
 export async function generateKeyBundle({
@@ -23,26 +26,29 @@ export async function generateKeyBundle({
     password,
   });
 
-  const nodes: INodePassword[] = [];
+  const nodes: INodeAccessKey[] = [];
   const nodePool = user.nodePool;
 
   for (const n of nodePool) {
-    const nodeSpecificKey = deriveNodeSpecificKey(
+    // 1. Derive the node-specific key for each guardian
+    const nodeKey = deriveNodeSpecificKey(
       Buffer.from(decryptedRootKey, "base64"),
       n.nodeId,
       type
     );
 
-    //encrypt node specific recovery key that the guardians can use to circle back to the user
-    //const fakeNodeSigningKey = nodeSigningKey + "THIS-IS-FAKE-FOR-TESTING";
-    const encryptedContent = await encryptContents({
-      content: nodeSpecificKey,
+    // 2. Generate Timestamp
+    const timestamp = new Date().toISOString();
+
+    // 3. Encrypt the node-specific key for each guardian to decrypt
+    const encryptedNodeKey = await encryptContents({
+      content: nodeKey,
       publicKey: n.e2ePublicKey,
       email: user.email,
       password,
     });
 
-    //encrypt recovery email because each guardian might have a different email
+    // 4. Encrypt Recovery Email for each guardian to decrypt
     const encryptedRecoveryEmail = await encryptContents({
       content: user.email,
       publicKey: n.e2ePublicKey,
@@ -50,10 +56,19 @@ export async function generateKeyBundle({
       password,
     });
 
+    // 5. Compute HMAC Signature of all data elements plus timestamp for replay protection
+    const messageHMAC = crypto
+      .createHmac("sha256", nodeKey)
+      .update(timestamp + user.email)
+      .digest("base64");
+
+    // 6. Push the node specific data into the key bundle
     nodes.push({
       nodeId: n.nodeId,
-      encryptedKey: encryptedContent,
-      encryptedRecoveryEmail,
+      timestamp: timestamp,
+      encryptedNodeKey: encryptedNodeKey,
+      encryptedRecoveryEmail: encryptedRecoveryEmail,
+      messageHMAC: messageHMAC,
     });
   }
 

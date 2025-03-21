@@ -74,7 +74,7 @@ export async function startRecovery(
     type: "e2e.public",
   });
   // Access the key directly from the object since it's no longer encrypted
-  const clientPublicKey = publicKeyObj.key;
+  const clientE2ePublicKey = publicKeyObj.key;
   const keyBundle = await key.generateKeyBundle({
     user,
     password,
@@ -82,7 +82,7 @@ export async function startRecovery(
   });
   const recoverResponse = await api.post("/v1/users/recovery", {
     email,
-    clientPublicKey,
+    clientE2ePublicKey,
     keyBundle,
   });
 
@@ -93,25 +93,27 @@ export async function startRecovery(
     throw new Error(message);
   }
 
-  return { user, clientPublicKey, keyBundle };
+  return recoverResponse.data;
 }
 
 export async function confirmRecovery(
   api: ApisauceInstance,
   email: string,
   password: string,
-  recoveryEmail: string // Renamed from recoveryCode for clarity
+  encryptedRecoveryEmail: string
 ): Promise<any> {
   //decrypt the recovery code
-  const decryptedRecoveryBundle = await key.decryptContents({
-    encryptedContent: recoveryEmail,
+  const decryptedRecoveryEmail = await key.decryptContents({
+    encryptedContent: encryptedRecoveryEmail,
     email,
     password,
   });
 
   //load local recovery key from file and compare to code provided by guardian
-  const recoveryBundle = JSON.parse(decryptedRecoveryBundle);
-  const { guardian_node_id, recovery_key, recovery_challenge } = recoveryBundle;
+  const { guardian_node_id, recovery_key, recovery_challenge } = JSON.parse(
+    decryptedRecoveryEmail
+  );
+
   const encryptedLocalRecoveryKey = await storage.loadKey({
     identifier: email,
     type: "recovery",
@@ -138,7 +140,6 @@ export async function confirmRecovery(
   // Generally not needed assuming that recovery occurs from a different device
   // Backup existing identity keys before generating new ones
   await key.backupIdentityKeys(email);
-
   // Convert recovery key to signing key now that recovery is confirmed
   await key.convertRecoveryKeyToSigningKey(email, password);
 
@@ -156,13 +157,13 @@ export async function confirmRecovery(
   const clientE2ePublicKey = publicKeyObj.key;
 
   // variable names are written in Rust style since this is meant for the guardian
-  const recoveryConfirmationBundle = {
+  const recoveryConfirmation = {
     recovery_challenge: recovery_challenge,
     client_identity_public_key: newIdentityPublicKey,
   };
 
-  const encryptedRecoveryConfirmationBundle = await key.encryptContents({
-    content: JSON.stringify(recoveryConfirmationBundle),
+  const encryptedRecoveryConfirmation = await key.encryptContents({
+    content: JSON.stringify(recoveryConfirmation),
     publicKey: guardianE2ePublicKey,
     email,
     password,
@@ -171,10 +172,58 @@ export async function confirmRecovery(
   const response = await api.post("/v1/users/recovery/confirm", {
     email,
     clientE2ePublicKey,
-    recoveryBundle: encryptedRecoveryConfirmationBundle,
+    encryptedRecoveryConfirmation: encryptedRecoveryConfirmation,
   });
 
   if (!response.ok || !response.data) {
+    const errorData = response.data as { message?: string } | undefined;
+    const message = errorData?.message || response.problem || "Unknown error";
+    throw new Error(message);
+  }
+
+  return response.data;
+}
+
+export async function transferOwner(
+  api: ApisauceInstance,
+  email: string,
+  password: string
+): Promise<any> {
+  // Load user from storage
+  const user = await storage.loadUser({ email });
+  if (!user) {
+    throw new Error("User not found in storage");
+  }
+
+  // Load the E2E public key from storage
+  const e2ePublicKeyObj = storage.loadKey({
+    identifier: email,
+    type: "e2e.public",
+  });
+  const clientE2ePublicKey = e2ePublicKeyObj.key;
+
+  // Load the identity public key from storage
+  const identityPublicKeyObj = storage.loadKey({
+    identifier: email,
+    type: "identity.public",
+  });
+  const clientIdentityPublicKey = identityPublicKeyObj.key;
+
+  // Generate key bundle for transfer
+  const keyBundle = await key.generateKeyBundle({
+    user,
+    password,
+    type: "signing",
+  });
+
+  const response = await api.post("/v1/users/transfer", {
+    email,
+    clientE2ePublicKey,
+    clientIdentityPublicKey,
+    keyBundle,
+  });
+
+  if (!response.ok) {
     const errorData = response.data as { message?: string } | undefined;
     const message = errorData?.message || response.problem || "Unknown error";
     throw new Error(message);

@@ -322,19 +322,34 @@ class GridlockSdk {
   async confirmRecovery({
     email,
     password,
-    recoveryCode,
+    encryptedRecoveryEmail,
   }: {
     email: string;
     password: string;
-    recoveryCode: string;
+    encryptedRecoveryEmail: string;
   }): Promise<any> {
     try {
       return await user.confirmRecovery(
         this.api,
         email,
         password,
-        recoveryCode
+        encryptedRecoveryEmail
       );
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  async transferOwner({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }): Promise<any> {
+    try {
+      return await user.transferOwner(this.api, email, password);
     } catch (error) {
       this.api.logError(error);
       throw error;

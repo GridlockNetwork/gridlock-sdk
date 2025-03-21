@@ -56,7 +56,7 @@ export async function createWallet(
   const createWalletData = {
     user,
     blockchain,
-    clientPublicKey: e2ePublicKey,
+    clientE2ePublicKey: e2ePublicKey,
     keyBundle,
   };
 
@@ -100,7 +100,7 @@ export async function signTransaction(
     user,
     wallet,
     message,
-    clientPublicKey: e2ePublicKey,
+    clientE2ePublicKey: e2ePublicKey,
     keyBundle,
   };
 
