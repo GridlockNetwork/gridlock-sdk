@@ -120,7 +120,6 @@ class AuthService {
     try {
       const user = await storage.loadUser({ email });
 
-      const { ownerGuardianId } = user;
       const nonceResponse = await this.api.post<{ nonce: string }>(
         "/v1/auth/nonce",
         { email }

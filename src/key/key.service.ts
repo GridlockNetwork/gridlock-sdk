@@ -235,6 +235,7 @@ export async function decryptContents({
   }
 
   const senderPublicKeyBuffer = Buffer.from(senderPublicKey, "base64");
+
   const decryptedMessage = nacl.box.open(
     cipherText,
     nonce,

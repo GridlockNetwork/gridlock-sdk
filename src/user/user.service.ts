@@ -2,6 +2,12 @@ import { ApisauceInstance } from "apisauce";
 import * as storage from "../storage/storage.service.js";
 import * as key from "../key/key.service.js";
 import { IRegisterResponse, IUser } from "./user.interfaces.js";
+import { IGuardian } from "../guardian/guardian.interfaces.js";
+import { IWallet } from "../wallet/wallet.interfaces.js";
+
+interface IRecoveryResponse {
+  guardians: IGuardian[];
+}
 
 export async function createUser(
   api: ApisauceInstance,
@@ -73,24 +79,36 @@ export async function startRecovery(
     identifier: email,
     type: "e2e.public",
   });
-  // Access the key directly from the object since it's no longer encrypted
   const clientE2ePublicKey = publicKeyObj.key;
   const keyBundle = await key.generateKeyBundle({
     user,
     password,
     type: "recovery",
   });
-  const recoverResponse = await api.post("/v1/users/recovery", {
-    email,
-    clientE2ePublicKey,
-    keyBundle,
-  });
+  const recoverResponse = await api.post<IRecoveryResponse>(
+    "/v1/users/recovery",
+    {
+      email,
+      clientE2ePublicKey,
+      keyBundle,
+    }
+  );
 
   if (!recoverResponse.ok) {
     const errorData = recoverResponse.data as { message?: string } | undefined;
     const message =
       errorData?.message || recoverResponse.problem || "Unknown error";
     throw new Error(message);
+  }
+
+  // Save each guardian from the response array
+  if (
+    recoverResponse.data?.guardians &&
+    Array.isArray(recoverResponse.data.guardians)
+  ) {
+    for (const guardian of recoverResponse.data.guardians) {
+      await storage.saveGuardian({ guardian });
+    }
   }
 
   return recoverResponse.data;
@@ -101,13 +119,35 @@ export async function confirmRecovery(
   email: string,
   password: string,
   encryptedRecoveryEmail: string
-): Promise<any> {
-  //decrypt the recovery code
-  const decryptedRecoveryEmail = await key.decryptContents({
-    encryptedContent: encryptedRecoveryEmail,
-    email,
-    password,
-  });
+): Promise<{ user: IUser; wallets: IWallet[] }> {
+  // Try to decrypt with each guardian's public key
+  const guardians = storage.loadGuardians();
+  let decryptedRecoveryEmail = null;
+
+  if (guardians.length === 0) {
+    throw new Error("No guardians available for decryption.");
+  }
+
+  for (const guardian of guardians) {
+    try {
+      decryptedRecoveryEmail = await key.decryptContents({
+        encryptedContent: encryptedRecoveryEmail,
+        senderPublicKey: guardian.e2ePublicKey,
+        email,
+        password,
+      });
+      if (decryptedRecoveryEmail) break;
+    } catch (error) {
+      // Continue to next guardian if decryption fails
+      continue;
+    }
+  }
+
+  if (!decryptedRecoveryEmail) {
+    throw new Error(
+      "Failed to decrypt recovery email with any guardian's public key"
+    );
+  }
 
   //load local recovery key from file and compare to code provided by guardian
   const { guardian_node_id, recovery_key, recovery_challenge } = JSON.parse(
@@ -169,16 +209,26 @@ export async function confirmRecovery(
     password,
   });
 
-  const response = await api.post("/v1/users/recovery/confirm", {
-    email,
-    clientE2ePublicKey,
-    encryptedRecoveryConfirmation: encryptedRecoveryConfirmation,
-  });
+  const response = await api.post<{ user: IUser; wallets: IWallet[] }>(
+    "/v1/users/recovery/confirm",
+    {
+      email,
+      clientE2ePublicKey,
+      encryptedRecoveryConfirmation: encryptedRecoveryConfirmation,
+    }
+  );
 
   if (!response.ok || !response.data) {
     const errorData = response.data as { message?: string } | undefined;
     const message = errorData?.message || response.problem || "Unknown error";
     throw new Error(message);
+  }
+
+  // Save the updated user and wallet information
+  const { user, wallets } = response.data;
+  storage.saveUser({ user });
+  for (const wallet of wallets) {
+    storage.saveWallet({ wallet });
   }
 
   return response.data;

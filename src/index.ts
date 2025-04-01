@@ -98,6 +98,49 @@ class GridlockSdk {
     }
   }
 
+  async addProfessionalGuardian({
+    email,
+    password,
+    type,
+  }: {
+    email: string;
+    password: string;
+    type: "gridlock" | "partner";
+  }): Promise<IAddGuardianResponse> {
+    try {
+      return await guardian.addProfessionalGuardian(
+        this.api,
+        this.authService,
+        email,
+        password,
+        type
+      );
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  async addSocialGuardian({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }): Promise<void> {
+    try {
+      await guardian.addSocialGuardian(
+        this.api,
+        this.authService,
+        email,
+        password
+      );
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
   async createWallet({
     email,
     password,
@@ -176,29 +219,6 @@ class GridlockSdk {
     }
   }
 
-  async addProfessionalGuardian({
-    email,
-    password,
-    type,
-  }: {
-    email: string;
-    password: string;
-    type: "gridlock" | "partner";
-  }): Promise<IAddGuardianResponse> {
-    try {
-      return await guardian.addProfessionalGuardian(
-        this.api,
-        this.authService,
-        email,
-        password,
-        type
-      );
-    } catch (error) {
-      this.api.logError(error);
-      throw error;
-    }
-  }
-
   async login({
     email,
     password,
@@ -253,20 +273,37 @@ class GridlockSdk {
     }
   }
 
-  async addSocialGuardian({
+  async confirmRecovery({
+    email,
+    password,
+    encryptedRecoveryEmail,
+  }: {
+    email: string;
+    password: string;
+    encryptedRecoveryEmail: string;
+  }): Promise<any> {
+    try {
+      return await user.confirmRecovery(
+        this.api,
+        email,
+        password,
+        encryptedRecoveryEmail
+      );
+    } catch (error) {
+      this.api.logError(error);
+      throw error;
+    }
+  }
+
+  async transferOwner({
     email,
     password,
   }: {
     email: string;
     password: string;
-  }): Promise<void> {
+  }): Promise<any> {
     try {
-      await guardian.addSocialGuardian(
-        this.api,
-        this.authService,
-        email,
-        password
-      );
+      return await user.transferOwner(this.api, email, password);
     } catch (error) {
       this.api.logError(error);
       throw error;
@@ -313,43 +350,6 @@ class GridlockSdk {
   clearStoredCredentials(): void {
     try {
       storage.clearStoredCredentials();
-    } catch (error) {
-      this.api.logError(error);
-      throw error;
-    }
-  }
-
-  async confirmRecovery({
-    email,
-    password,
-    encryptedRecoveryEmail,
-  }: {
-    email: string;
-    password: string;
-    encryptedRecoveryEmail: string;
-  }): Promise<any> {
-    try {
-      return await user.confirmRecovery(
-        this.api,
-        email,
-        password,
-        encryptedRecoveryEmail
-      );
-    } catch (error) {
-      this.api.logError(error);
-      throw error;
-    }
-  }
-
-  async transferOwner({
-    email,
-    password,
-  }: {
-    email: string;
-    password: string;
-  }): Promise<any> {
-    try {
-      return await user.transferOwner(this.api, email, password);
     } catch (error) {
       this.api.logError(error);
       throw error;
