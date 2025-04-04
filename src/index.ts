@@ -276,18 +276,18 @@ class GridlockSdk {
   async confirmRecovery({
     email,
     password,
-    encryptedRecoveryEmail,
+    recoveryBundle,
   }: {
     email: string;
     password: string;
-    encryptedRecoveryEmail: string;
+    recoveryBundle: string;
   }): Promise<any> {
     try {
       return await user.confirmRecovery(
         this.api,
         email,
         password,
-        encryptedRecoveryEmail
+        recoveryBundle
       );
     } catch (error) {
       this.api.logError(error);

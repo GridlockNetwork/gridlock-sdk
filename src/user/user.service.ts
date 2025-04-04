@@ -118,11 +118,11 @@ export async function confirmRecovery(
   api: ApisauceInstance,
   email: string,
   password: string,
-  encryptedRecoveryEmail: string
+  recoveryBundle: string
 ): Promise<{ user: IUser; wallets: IWallet[] }> {
   // Try to decrypt with each guardian's public key
   const guardians = storage.loadGuardians();
-  let decryptedRecoveryEmail = null;
+  let decryptedRecoveryBundle = null;
 
   if (guardians.length === 0) {
     throw new Error("No guardians available for decryption.");
@@ -130,20 +130,20 @@ export async function confirmRecovery(
 
   for (const guardian of guardians) {
     try {
-      decryptedRecoveryEmail = await key.decryptContents({
-        encryptedContent: encryptedRecoveryEmail,
+      decryptedRecoveryBundle = await key.decryptContents({
+        encryptedContent: recoveryBundle,
         senderPublicKey: guardian.e2ePublicKey,
         email,
         password,
       });
-      if (decryptedRecoveryEmail) break;
+      if (decryptedRecoveryBundle) break;
     } catch (error) {
       // Continue to next guardian if decryption fails
       continue;
     }
   }
 
-  if (!decryptedRecoveryEmail) {
+  if (!decryptedRecoveryBundle) {
     throw new Error(
       "Failed to decrypt recovery email with any guardian's public key"
     );
@@ -151,7 +151,7 @@ export async function confirmRecovery(
 
   //load local recovery key from file and compare to code provided by guardian
   const { guardian_node_id, recovery_key, recovery_challenge } = JSON.parse(
-    decryptedRecoveryEmail
+    decryptedRecoveryBundle
   );
 
   const encryptedLocalRecoveryKey = await storage.loadKey({
