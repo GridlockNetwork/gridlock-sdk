@@ -1,0 +1,70 @@
+{
+  "name": "gridlock-sdk",
+  "version": "1.1.0",
+  "description": "SDK for interacting with Gridlock's secure storage and authentication services",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    }
+  },
+  "type": "module",
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "dev": "npm run build:watch"
+  },
+  "keywords": [
+    "sdk",
+    "gridlock",
+    "secure",
+    "crypto",
+    "storage",
+    "authentication",
+    "encryption"
+  ],
+  "author": "Gridlock Team",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GridlockNetwork/gridlock-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GridlockNetwork/gridlock-sdk/issues"
+  },
+  "homepage": "https://github.com/GridlockNetwork/gridlock-sdk#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "@types/qrcode": "^1.5.5",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@types/uuid": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@types/mongodb": "^4.0.7",
+    "apisauce": "^3.1.0",
+    "argon2": "^0.41.1",
+    "bs58": "^6.0.0",
+    "chalk": "^5.4.1",
+    "ethers": "^6.13.3",
+    "moment": "^2.30.1",
+    "mongodb": "^6.12.0",
+    "qrcode-terminal": "^0.12.0",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1",
+    "uuid": "^10.0.0"
+  }
+}
